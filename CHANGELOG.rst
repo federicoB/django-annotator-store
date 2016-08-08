@@ -29,3 +29,4 @@ codebase.
 * Supports both Python 3.x and Python 2.7
 * Includes example templates with code for initializing an annotator.js
   instance and connecting it to annotator_store as a backend.
+
