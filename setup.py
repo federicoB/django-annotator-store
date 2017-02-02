@@ -11,7 +11,7 @@ os.chdir(os.path.normpath(os.path.join(os.path.abspath(__file__), os.pardir)))
 test_requirements = ['mock', 'pytest', 'pytest-django', 'pytest-cov'],
 
 setup(
-    name='annoator_store',
+    name='annotator_store',
     version=__version__,
     packages=find_packages(),
     include_package_data=True,
@@ -20,9 +20,10 @@ setup(
     long_description=README,
     url='https://github.com/Princeton-CDH/django-annotator-store',
     install_requires=[
-        'django',
+        'django<1.9',
         'django-guardian',
         'jsonfield',
+        'eulcommon',
     ],
     setup_requires=['pytest-runner'],
     tests_require=test_requirements,
