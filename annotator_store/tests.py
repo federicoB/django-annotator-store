@@ -425,7 +425,11 @@ class AnnotationViewsTest(TestCase):
             'should return 303 See Other on succesful annotation creation, got %s' \
             % resp.status_code)
         # get view information
-        view = resolve(resp['Location'][len('http://testserver'):])
+        location = resp['Location']
+        # change from django 1.8 to 1.9 - http://testserver no longer included
+        if location.startswith('http://testserver'):
+            location = location[len('http://testserver'):]
+        view = resolve(location)
         self.assertEqual('annotation-api:view', '%s:%s' % (view.namespaces[0], view.url_name),
             'successful create should redirect to annotation view')
 
@@ -497,7 +501,7 @@ class AnnotationViewsTest(TestCase):
             'expected 303 See Other on succesful annotation update, got %s' \
             % resp.status_code)
         # get view information
-        self.assertEqual('http://testserver%s' % url, resp['Location'])
+        assert url in resp['Location']
         # get a fresh copy from the db and check values
         n1 = Annotation.objects.get(id=self.user_note.id)
         self.assertEqual(AnnotationTestCase.annotation_data['text'],
