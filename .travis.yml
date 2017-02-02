@@ -4,6 +4,9 @@ python:
   - "2.7"
   # - "3.5"
 
+before_install:
+  - pip install --upgrade pytest
+
 install:
   - pip install -e .
   - pip install -e '.[test]'
