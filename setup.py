@@ -24,6 +24,7 @@ setup(
         'django-guardian',
         'jsonfield',
         'eulcommon',
+        'six',
     ],
     setup_requires=['pytest-runner'],
     tests_require=test_requirements,

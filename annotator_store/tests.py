@@ -6,6 +6,7 @@ from django.core.urlresolvers import reverse, resolve
 from django.test import TestCase
 from django.test.utils import override_settings
 from guardian.shortcuts import remove_perm
+import six
 
 from .models import Annotation, AnnotationGroup
 
@@ -52,7 +53,7 @@ class AnnotationTestCase(TestCase):
     def setUp(self):
         # use mock to simulate django httprequest
         self.mockrequest = Mock()
-        self.mockrequest.body = json.dumps(self.annotation_data)
+        self.mockrequest.body = six.b(json.dumps(self.annotation_data))
 
     def test_create_from_request(self):
         note = Annotation.create_from_request(self.mockrequest)
@@ -340,7 +341,7 @@ class AnnotationViewsTest(TestCase):
         resp = self.client.get(reverse('annotation-api:index'))
         self.assertEqual('application/json', resp['Content-Type'])
         # expected fields in the output
-        data = json.loads(resp.content)
+        data = json.loads(resp.content.decode())
         for f in ['version', 'name']:
             self.assert_(f in data)
 
@@ -350,26 +351,26 @@ class AnnotationViewsTest(TestCase):
         # anonymous user should see no notes
         resp = self.client.get(reverse('annotation-api:annotations'))
         self.assertEqual('application/json', resp['Content-Type'])
-        data = json.loads(resp.content)
+        data = json.loads(resp.content.decode())
         self.assertEqual(0, len(data))
 
         # log in as a regular user
         self.client.login(**self.user_credentials['user'])
         resp = self.client.get(reverse('annotation-api:annotations'))
-        data = json.loads(resp.content)
+        data = json.loads(resp.content.decode())
         # notes by this user should be listed
         user_notes = notes.filter(user__username='testuser')
         self.assertEqual(user_notes.count(), len(data))
-        self.assertEqual(data[0]['id'], unicode(user_notes[0].id))
+        self.assertEqual(data[0]['id'], str(user_notes[0].id))
 
         # log in as superuser
         self.client.login(**self.user_credentials['superuser'])
         resp = self.client.get(reverse('annotation-api:annotations'))
-        data = json.loads(resp.content)
+        data = json.loads(resp.content.decode())
         # all notes user should be listed
         self.assertEqual(notes.count(), len(data))
-        self.assertEqual(data[0]['id'], unicode(notes[0].id))
-        self.assertEqual(data[1]['id'], unicode(notes[1].id))
+        self.assertEqual(data[0]['id'], str(notes[0].id))
+        self.assertEqual(data[1]['id'], str(notes[1].id))
 
         # test group permissions
         self.client.login(**self.user_credentials['user'])
@@ -389,7 +390,7 @@ class AnnotationViewsTest(TestCase):
         group.save()
 
         resp = self.client.get(reverse('annotation-api:annotations'))
-        data = json.loads(resp.content)
+        data = json.loads(resp.content.decode())
         # user should not have access to any notes
         self.assertEqual(0, len(data))
 
@@ -397,10 +398,10 @@ class AnnotationViewsTest(TestCase):
         user_notes[0].db_permissions({'read': [group.annotation_id]})
 
         resp = self.client.get(reverse('annotation-api:annotations'))
-        data = json.loads(resp.content)
+        data = json.loads(resp.content.decode())
         # user should have access to any notes by group permissiosn
         self.assertEqual(1, len(data))
-        self.assertEqual(data[0]['id'], unicode(notes[0].id))
+        self.assertEqual(data[0]['id'], str(notes[0].id))
 
     def test_create_annotation(self):
         url = reverse('annotation-api:annotations')
@@ -455,8 +456,8 @@ class AnnotationViewsTest(TestCase):
             kwargs={'id': self.user_note.id}))
         self.assertEqual('application/json', resp['Content-Type'])
         # check a few fields in the data
-        data = json.loads(resp.content)
-        self.assertEqual(unicode(self.user_note.id), data['id'])
+        data = json.loads(resp.content.decode())
+        self.assertEqual(str(self.user_note.id), data['id'])
         self.assertEqual(self.user_note.text, data['text'])
         self.assertEqual(self.user_note.created.isoformat(), data['created'])
 
@@ -472,8 +473,8 @@ class AnnotationViewsTest(TestCase):
         self.client.login(**self.user_credentials['superuser'])
         resp = self.client.get(reverse('annotation-api:view',
             kwargs={'id': self.user_note.id}))
-        data = json.loads(resp.content)
-        self.assertEqual(unicode(self.user_note.id), data['id'])
+        data = json.loads(resp.content.decode())
+        self.assertEqual(str(self.user_note.id), data['id'])
 
         # test 404
         resp = self.client.get(reverse('annotation-api:view', kwargs={'id': uuid.uuid4()}))
@@ -494,7 +495,7 @@ class AnnotationViewsTest(TestCase):
         # log in as a regular user
         self.client.login(**self.user_credentials['user'])
         resp = self.client.put(url,
-            data=json.dumps(AnnotationTestCase.annotation_data),
+            data=six.b(json.dumps(AnnotationTestCase.annotation_data)),
             content_type='application/json',
             HTTP_X_REQUESTED_WITH='XMLHttpRequest')
         self.assertEqual(303, resp.status_code,
@@ -555,7 +556,7 @@ class AnnotationViewsTest(TestCase):
         self.assertEqual(204, resp.status_code,
             'expected 204 No Content for succesful annotation deletion, got %s' %\
             resp.status_code)
-        self.assertEqual('', resp.content,
+        self.assertEqual(six.b(''), resp.content,
             'deletion response should have no content')
 
         # attempt to delete other user's note
@@ -575,7 +576,7 @@ class AnnotationViewsTest(TestCase):
         resp = self.client.get(search_url, {'text': 'what a'})
         self.assertEqual('application/json', resp['Content-Type'])
         # check the data
-        data = json.loads(resp.content)
+        data = json.loads(resp.content.decode())
         self.assertEqual(0, data['total'],
             'anonymous user should not see any search results')
 
@@ -584,7 +585,7 @@ class AnnotationViewsTest(TestCase):
         resp = self.client.get(search_url, {'text': 'what a'})
         # returned notes should automatically be filtered by user
         user_notes = notes.filter(user__username=self.user_credentials['user']['username'])
-        data = json.loads(resp.content)
+        data = json.loads(resp.content.decode())
         self.assertEqual(user_notes.count(), data['total'])
         self.assertEqual(str(user_notes[0].id), data['rows'][0]['id'])
 
@@ -592,35 +593,35 @@ class AnnotationViewsTest(TestCase):
         self.client.login(**self.user_credentials['superuser'])
         # matches both fixture notes
         resp = self.client.get(search_url, {'text': 'what a'})
-        data = json.loads(resp.content)
+        data = json.loads(resp.content.decode())
         self.assertEqual(notes.count(), data['total'])
         self.assertEqual(str(notes[0].id), data['rows'][0]['id'])
         self.assertEqual(str(notes[1].id), data['rows'][1]['id'])
 
         # search on uri
         resp = self.client.get(search_url, {'uri': notes[0].uri})
-        data = json.loads(resp.content)
+        data = json.loads(resp.content.decode())
         self.assertEqual(1, data['total'])
         self.assertEqual(notes[0].uri, data['rows'][0]['uri'])
 
         # search by username
         resp = self.client.get(search_url, {'user': self.user_credentials['user']['username']})
-        data = json.loads(resp.content)
+        data = json.loads(resp.content.decode())
         self.assertEqual(1, data['total'])
-        self.assertEqual(unicode(user_notes[0].id), data['rows'][0]['id'])
+        self.assertEqual(str(user_notes[0].id), data['rows'][0]['id'])
 
         # limit/offset
         resp = self.client.get(search_url, {'limit': '1'})
-        data = json.loads(resp.content)
+        data = json.loads(resp.content.decode())
         self.assertEqual(1, data['total'])
 
         resp = self.client.get(search_url, {'offset': '1'})
-        data = json.loads(resp.content)
+        data = json.loads(resp.content.decode())
         self.assertEqual(notes.count() - 1, data['total'])
         # should return the *second* note first
         self.assertEqual(str(notes[1].id), data['rows'][0]['id'])
 
         # non-numeric pagination should be ignored
         resp = self.client.get(search_url, {'limit': 'three'})
-        data = json.loads(resp.content)
+        data = json.loads(resp.content.decode())
         self.assertEqual(notes.count(), data['total'])

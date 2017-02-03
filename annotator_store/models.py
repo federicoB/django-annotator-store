@@ -11,6 +11,7 @@ from jsonfield import JSONField
 from guardian.shortcuts import assign_perm, get_objects_for_user, \
     get_objects_for_group, get_perms_for_model, get_perms
 from guardian.models import UserObjectPermission, GroupObjectPermission
+import six
 
 
 logger = logging.getLogger(__name__)
@@ -209,11 +210,11 @@ class Annotation(models.Model):
         based on the request user.
         '''
 
-        data = json.loads(request.body)
+        data = json.loads(request.body.decode())
 
         model_data = {}
         extra_data = {}
-        for k, v in data.iteritems():
+        for k, v in six.iteritems(data):
             if k in Annotation.common_fields:
                 model_data[k] = v
             else:
@@ -237,7 +238,7 @@ class Annotation(models.Model):
         '''Update attributes from data in a
         :class:`django.http.HttpRequest`. Expects request body content to be
         JSON.   Currently does *not* modify user.'''
-        data = json.loads(request.body)
+        data = json.loads(request.body.decode())
         # NOTE: could keep a list of modified fields and
         # and allow Django to do a more efficient db update
 
@@ -285,7 +286,7 @@ class Annotation(models.Model):
         '''Return a :class:`collections.OrderedDict` of fields to be
         included in serialized JSON version of the current annotation.'''
         info = OrderedDict([
-            ('id', unicode(self.id)),
+            ('id', str(self.id)),
             ('annotator_schema_version', self.schema_version),
             # iso8601 formatted dates
             ('created', self.created.isoformat() if self.created else ''),
@@ -299,7 +300,7 @@ class Annotation(models.Model):
         # There shouldn't be collisions between extra data and db
         # fields, but in case there are, none of the extra data shoudl
         # override core fields
-        info.update({k: v for k, v in self.extra_data.iteritems()
+        info.update({k: v for k, v in six.iteritems(self.extra_data)
                      if k not in info})
 
         # annotation permissions dict based on database permissions
@@ -319,7 +320,7 @@ class Annotation(models.Model):
     }
     #: lookup annotation permission mode by django permission codename
     codename_to_permission = dict([(codename, mode) for mode, codename
-                                   in permission_to_codename.iteritems()])
+                                   in six.iteritems(permission_to_codename)])
 
     def user_permissions(self):
         '''Queryset of :class:`guardian.model.UserObjectPermission`
@@ -373,7 +374,7 @@ class Annotation(models.Model):
         # by the readux annotator permissions module
 
         # then re-assign permissions based on annotation permissions
-        for mode, users in permissions.iteritems():
+        for mode, users in six.iteritems(permissions):
             for ident in users:
                 entity = self.get_group_or_user(ident)
                 if entity is not None:
