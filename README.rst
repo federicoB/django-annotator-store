@@ -1,7 +1,20 @@
 .. _README:
 
 Django-Annotator-Store
-=====================
+======================
+
+.. image:: https://travis-ci.org/Princeton-CDH/django-annotator-store.svg?branch=feature/extract-annotator-store
+   :target: https://travis-ci.org/Princeton-CDH/django-annotator-store
+   :alt: Build Status
+.. image:: https://codecov.io/gh/Princeton-CDH/django-annotator-store/branch/feature/extract-annotator-store/graph/badge.svg
+  :target: https://codecov.io/gh/Princeton-CDH/django-annotator-store
+   :alt: Code Coverage
+.. image:: https://landscape.io/github/Princeton-CDH/django-annotator-store/feature/extract-annotator-store/landscape.svg?style=flat
+   :target: https://landscape.io/github/Princeton-CDH/django-annotator-store/feature/extract-annotator-store
+   :alt: Code Health
+.. image:: https://requires.io/github/Princeton-CDH/django-annotator-store/requirements.svg?branch=feature%2Fextract-annotator-store
+     :target: https://requires.io/github/Princeton-CDH/django-annotator-store/requirements/?branch=feature%2Fextract-annotator-store
+     :alt: Requirements Status
 
 **annotator_store** is a `Django <https://www.djangoproject.com/>`_
 application meant for use within a Django project as an
