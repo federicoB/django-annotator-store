@@ -22,6 +22,7 @@ setup(
     install_requires=[
         'django>1.8,<1.10',
         'django-guardian',
+        'pytz',
         'jsonfield',
         'eulcommon',
         'six',

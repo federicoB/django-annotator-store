@@ -65,11 +65,13 @@ required components are enabled::
 Include the annotation storage API urls at the desired base url with the
 namespace::
 
+    from annotator_store import views as annotator_views
+
     urlpatterns = [
         # annotations
         url(r'^annotations/api/', include('annotator_store.urls', namespace='annotation-api')),
         # annotatorjs doesn't handle trailing slash in api prefix url
-        url(r'^annotations/api', annotation_views.AnnotationIndex.as_view(), name='annotation-api-prefix'),
+        url(r'^annotations/api', annotator_views.AnnotationIndex.as_view(), name='annotation-api-prefix'),
     ]
 
 Run migrations to create annotation database tables::
