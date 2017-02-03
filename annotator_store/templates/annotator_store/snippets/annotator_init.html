@@ -85,11 +85,14 @@ $.ajaxSetup({
   var csrftoken = getCookie('csrftoken');
    $(document).ready(function () {
 
+    // current page url, for associating new annotatiosn and loading
+    // existing ones.  Use url without any hash.
+    var page_uri = location.href.split(/\?|#/)[0];
 
     var pageUri = function () {
         return {
             beforeAnnotationCreated: function (ann) {
-                ann.uri = window.location.href;
+                ann.uri = page_uri;
             }
         };
     };
@@ -160,7 +163,7 @@ $.ajaxSetup({
   app.start()
       .then(function () {
           // {# {% if mode = 'full' %} #}
-           app.annotations.load({uri: window.location.href});
+           app.annotations.load({uri: page_uri});
           //{#  {% endif %} #}
       });
   {# set user identity to allow for basic permission checking #}
