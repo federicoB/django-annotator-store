@@ -1,7 +1,7 @@
-from django.conf.urls import patterns, url
+from django.conf.urls import url
 
 from annotator_store import views
-from .models import Annotation
+from .models import BaseAnnotation
 
 app_name = 'annotator_store'
 
@@ -11,6 +11,6 @@ urlpatterns = [
     # urls are without trailing slashes per annotatorjs api documentation
     url(r'^search$', views.AnnotationSearch.as_view(), name='search'),
     url(r'^annotations$', views.Annotations.as_view(), name='annotations'),
-    url(r'^annotations/(?P<id>%s)$' % Annotation.UUID_REGEX,
+    url(r'^annotations/(?P<id>%s)$' % BaseAnnotation.UUID_REGEX,
         views.AnnotationView.as_view(), name='view'),
 ]

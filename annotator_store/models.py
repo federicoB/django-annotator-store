@@ -2,6 +2,7 @@ from collections import OrderedDict
 import json
 import logging
 import uuid
+from django.apps import apps
 from django.db import models
 from django.conf import settings
 from django.core.urlresolvers import reverse
@@ -15,6 +16,10 @@ import six
 
 
 logger = logging.getLogger(__name__)
+
+
+ANNOTATION_MODEL_NAME = getattr(settings, 'ANNOTATOR_ANNOTATION_MODEL',
+    "annotator_store.Annotation")
 
 
 class AnnotationQuerySet(models.QuerySet):
@@ -96,7 +101,7 @@ class AnnotationManager(models.Manager):
         return self.get_queryset().visible_to_group(group)
 
 
-class Annotation(models.Model):
+class BaseAnnotation(models.Model):
     '''Django database model to store Annotator.js annotation data,
     based on the
     `annotation format documentation <http://docs.annotatorjs.org/en/v1.2.x/annotation-format.html>`_.'''
@@ -168,6 +173,7 @@ class Annotation(models.Model):
     objects = AnnotationManager()
 
     class Meta:
+        abstract = True
         # extend default permissions to add a view option
         # change_annotation and delete_annotation provided by django
         permissions = (
@@ -229,7 +235,7 @@ class Annotation(models.Model):
     def save(self, *args, **kwargs):
         """Extend default save method to ensure annotation user has
         access to edit and update their own annotation."""
-        super(Annotation, self).save(*args, **kwargs)
+        super(BaseAnnotation, self).save(*args, **kwargs)
         # NOTE: currently annotation model assumes user is not modified;
         # if it is changed, previous owner will still have permissions
         self.grant_user_access()
@@ -428,6 +434,19 @@ class Annotation(models.Model):
 
     def user_can_delete(self, user):
         return self.user_has_perm(user, 'delete_annotation')
+
+
+if ANNOTATION_MODEL_NAME == "annotator_store.Annotation":
+
+    class Annotation(BaseAnnotation):
+        pass
+
+
+def get_annotation_model():
+    app_name, model_name = ANNOTATION_MODEL_NAME.split(".")
+    app = apps.get_app_config(app_name)
+    return app.get_model(model_name)
+
 
 class AnnotationGroup(Group):
     """Annotation Group; extends :class:`django.contrib.auth.models.Group`.
