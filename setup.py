@@ -1,4 +1,5 @@
 import os
+import sys
 from setuptools import find_packages, setup
 from annotator_store import __version__
 
@@ -8,7 +9,10 @@ with open(os.path.join(os.path.dirname(__file__), 'README.rst')) as readme:
 # allow setup.py to be run from any path
 os.chdir(os.path.normpath(os.path.join(os.path.abspath(__file__), os.pardir)))
 
-test_requirements = ['mock', 'pytest', 'pytest-django', 'pytest-cov'],
+TEST_REQUIREMENTS = ['pytest', 'pytest-django', 'pytest-cov']
+if sys.version_info < (3, 0):
+    TEST_REQUIREMENTS.append('mock')
+
 
 setup(
     name='annotator_store',
@@ -20,7 +24,7 @@ setup(
     long_description=README,
     url='https://github.com/Princeton-CDH/django-annotator-store',
     install_requires=[
-        'django>1.8,<1.10',
+        'django>1.8',
         'django-guardian',
         'pytz',
         'jsonfield',
@@ -28,9 +32,9 @@ setup(
         'six',
     ],
     setup_requires=['pytest-runner'],
-    tests_require=test_requirements,
+    tests_require=TEST_REQUIREMENTS,
     extras_require={
-        'test': test_requirements,
+        'test': TEST_REQUIREMENTS,
     },
     author='CDH @ Princeton',
     author_email='digitalhumanities@princeton.edu',
@@ -42,8 +46,10 @@ setup(
         'License :: OSI Approved :: Apache Software License',
         'Operating System :: OS Independent',
         'Programming Language :: Python',
+        'Programming Language :: Python :: 2',
+        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
-        # 'Programming Language :: Python :: 3.4', ?
+        # NOTE: test/support other 3.x python versions?
         'Programming Language :: Python :: 3.5',
     ],
 )

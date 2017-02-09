@@ -1,5 +1,10 @@
 import json
-from mock import Mock, patch
+try:
+    # python 3
+    from unittest.mock import Mock, patch
+except ImportError:
+    # python 2.7
+    from mock import Mock, patch
 import uuid
 from django.contrib.auth import get_user_model
 from django.core.urlresolvers import reverse, resolve
