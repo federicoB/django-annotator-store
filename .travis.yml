@@ -8,6 +8,8 @@ env:
   - DJANGO=1.8
   - DJANGO=1.9
   - DJANGO=1.10
+  - PERMISSIONS=true
+  - PERMISSIONS=false
 
 before_install:
   - pip install --upgrade pytest
@@ -15,7 +17,8 @@ before_install:
 install:
   - pip install -q Django==$DJANGO
   - pip install -e .
-  - pip install -e '.[permissions]'
+  - if [[ "$PERMISSIONS" == "true" ]]; then pip install -e '.[permissions]'; else echo "[SKIPPED] install permissions"; fi
+  # - pip install -e '.[permissions]'
   - pip install -e '.[test]'
   - pip install codecov
   - cp ci/testsettings.py testsettings.py
