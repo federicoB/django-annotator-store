@@ -78,6 +78,18 @@ Run migrations to create annotation database tables::
 
     python manage.py migrate
 
+Custom Annotation Model
+^^^^^^^^^^^^^^^^^^^^^^^
+
+This module is designed to allow the use of a custom annotation model, in order
+to add functionality or relationships to other models within an application.
+To take advantage of this feature, you should extend the abstract model
+`annotator_store.models.BaseAnnotation` and configure your model in
+Django setings, e.g.::
+
+    ANNOTATOR_ANNOTATION_MODEL = 'myapp.LocalAnnotation'
+
+
 Development instructions
 ------------------------
 
