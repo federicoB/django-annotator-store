@@ -15,6 +15,7 @@ before_install:
 install:
   - pip install -q Django==$DJANGO
   - pip install -e .
+  - pip install -e '.[permissions]'
   - pip install -e '.[test]'
   - pip install codecov
   - cp ci/testsettings.py testsettings.py

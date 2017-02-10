@@ -10,9 +10,13 @@ from django.core.urlresolvers import reverse
 from django.contrib.auth.models import Group, User
 from django.utils.html import format_html
 from jsonfield import JSONField
-from guardian.shortcuts import assign_perm, get_objects_for_user, \
-    get_objects_for_group, get_perms_for_model, get_perms
-from guardian.models import UserObjectPermission, GroupObjectPermission
+try:
+    import guardian
+    from guardian.shortcuts import assign_perm, get_objects_for_user, \
+        get_objects_for_group, get_perms_for_model, get_perms
+    from guardian.models import UserObjectPermission, GroupObjectPermission
+except ImportError:
+    guardian = None
 import six
 
 
@@ -21,6 +25,9 @@ logger = logging.getLogger(__name__)
 
 ANNOTATION_MODEL_NAME = getattr(settings, 'ANNOTATOR_ANNOTATION_MODEL',
     "annotator_store.Annotation")
+
+ANNOTATION_OBJECT_PERMISSIONS = getattr(settings, 'ANNOTATION_OBJECT_PERMISSIONS',
+    False)
 
 
 class AnnotationQuerySet(models.QuerySet):
@@ -151,13 +158,6 @@ class BaseAnnotation(models.Model):
     #        "endOffset": 120                       # character offset within end element
     #    }
     # ]
-    # example permissions from the documentation
-    # "permissions": {
-    #     "read": ["group:__world__"],
-    #     "admin": [],
-    #     "update": [],
-    #     "delete": []
-    # }
 
     # NOTE: according to the documentation, the basic schema is
     # extensible, can be added to by plugins, and any fields added by the
@@ -233,14 +233,6 @@ class BaseAnnotation(models.Model):
         # convert extra data back to json for storage in a single json field
         return cls(extra_data=json.dumps(extra_data), **model_data)
 
-    def save(self, *args, **kwargs):
-        """Extend default save method to ensure annotation user has
-        access to edit and update their own annotation."""
-        super(BaseAnnotation, self).save(*args, **kwargs)
-        # NOTE: currently annotation model assumes user is not modified;
-        # if it is changed, previous owner will still have permissions
-        self.grant_user_access()
-
     def update_from_request(self, request):
         '''Update attributes from data in a
         :class:`django.http.HttpRequest`. Expects request body content to be
@@ -265,19 +257,6 @@ class BaseAnnotation(models.Model):
                 setattr(self, field, data[field])
                 del data[field]
 
-        # if permissions are specified, convert into actionable django
-        # permissions and remove from the data
-        if 'permissions' in data:
-            # only change permissions if user has admin annotation
-            # permission; otherwise, ignore any changes
-            if self.user_has_perm(request.user, 'admin_annotation'):
-                logger.debug('user has admin perms, updating db permissions')
-                self.db_permissions(data['permissions'])
-            else:
-                logger.debug('user does not have admin perms, ignoring permissions')
-
-            del data['permissions']
-
         if data:
             # any other data included in the request and not yet
             # processed should be stored as extra data
@@ -285,9 +264,15 @@ class BaseAnnotation(models.Model):
             # any extra data should have been included in the annotation
             # that was loaded for editing; using update would make it
             # impossible to delete extra data fields.
-            self.extra_data = data
+            self.extra_data = self.handle_extra_data(data, request)
 
         self.save()
+
+    def handle_extra_data(self, data, request):
+        '''Handle any "extra" data that is not part of the stock annotation
+        data model.  Use this method to customize the logic for updating
+        an annotation from request data.'''
+        return data
 
     def info(self):
         '''Return a :class:`collections.OrderedDict` of fields to be
@@ -310,139 +295,226 @@ class BaseAnnotation(models.Model):
         info.update({k: v for k, v in six.iteritems(self.extra_data)
                      if k not in info})
 
-        # annotation permissions dict based on database permissions
-        permissions = self.permissions_dict()
-        # only include if at least one permission is not empty
-        if any(permissions.values()):
-            info['permissions'] = permissions
-
         return info
 
-    #: map annotator permissions to django annotation permission codenames
-    permission_to_codename = {
-        'read': 'view_annotation',
-        'update': 'change_annotation',
-        'delete': 'delete_annotation',
-        'admin': 'admin_annotation'
-    }
-    #: lookup annotation permission mode by django permission codename
-    codename_to_permission = dict([(codename, mode) for mode, codename
-                                   in six.iteritems(permission_to_codename)])
 
-    def user_permissions(self):
-        '''Queryset of :class:`guardian.model.UserObjectPermission`
-        objects associated with this annotation.'''
-        return UserObjectPermission.objects.filter(object_pk=self.pk)
+# if per-object permissions are requested and guardian is installed
+# define annotation permission functionality
 
-    def group_permissions(self):
-        '''Queryset of :class:`guardian.model.GroupObjectPermission`
-        objects associated with this annotation.'''
-        return GroupObjectPermission.objects.filter(object_pk=self.pk)
+if ANNOTATION_OBJECT_PERMISSIONS and guardian:
 
-    def get_group_or_user(self, ident):
-        # look up annotation group or user based on username
-        # or group id in annotation permissions list
-        if ident.startswith('group:'):
-            group_id = ident[len('group:'):]
-            try:
-                return AnnotationGroup.objects.get(id=int(group_id))
-            except ValueError:
-                # non-integer identifier found
-                logger.warn("Invalid group id '%s' in annotation %s permissions",
-                            group_id, self.pk)
-            except AnnotationGroup.DoesNotExist:
-                logger.warn("Error finding group '%s' in annotation %s permissions",
-                            group_id, self.pk)
-        else:
-            try:
-                return User.objects.get(username=ident)
-            except User.DoesNotExist:
-                logger.warn("Error finding user '%s' in annotation %s permissions",
-                            ident, self.pk)
+    class AnnotationWithPermissions(BaseAnnotation):
+        '''Mix-in annotation class to provide object-level permissions
+        handling via django-guardian'''
 
-    def assign_permission(self, permission, entity):
-        """Wrapper around :meth:`guardian.shortcuts.assign_perm`.
-        Gives the specified permission to the specified user or group
-        on the current object.
+        class Meta:
+            abstract = True
+            permissions = (
+                ('view_annotation', 'View annotation'),
+                ('admin_annotation', 'Manage annotation'),
+            )
+
+        # example permissions from the documentation
+        # "permissions": {
+        #     "read": ["group:__world__"],
+        #     "admin": [],
+        #     "update": [],
+        #     "delete": []
+        # }
+
+        #: map annotator permissions to django annotation permission codenames
+        permission_to_codename = {
+            'read': 'view_annotation',
+            'update': 'change_annotation',
+            'delete': 'delete_annotation',
+            'admin': 'admin_annotation'
+        }
+        #: lookup annotation permission mode by django permission codename
+        codename_to_permission = dict([(codename, mode) for mode, codename
+                                       in six.iteritems(permission_to_codename)])
+
+        def info(self):
+            '''Update default annotation info to include permissions'''
+            info = super(AnnotationWithPermissions, self).info()
+            # annotation permissions dict based on database permissions
+            permissions = self.permissions_dict()
+            # only include if at least one permission is not empty
+            if any(permissions.values()):
+                info['permissions'] = permissions
+            return info
+
+        def save(self, *args, **kwargs):
+            """Extend default save method to ensure annotation user has
+            access to edit and update their own annotation."""
+            super(AnnotationWithPermissions, self).save(*args, **kwargs)
+            # NOTE: currently annotation model assumes user is not modified;
+            # if it is changed, previous owner will still have permissions
+            self.grant_user_access()
+
+        def handle_extra_data(self, data, request):
+            '''Handle any "extra" data that is not part of the stock annotation
+            data model.  Use this method to customize the logic for updating
+            an annotation from request data.'''
+            data = super(AnnotationWithPermissions, self).handle_extra_data(data, request)
+            if 'permissions' in data:
+                # only change permissions if user has admin annotation
+                # permission; otherwise, ignore any changes
+                if self.user_has_perm(request.user, 'admin_annotation'):
+                    logger.debug('user has admin perms, updating db permissions')
+                    self.db_permissions(data['permissions'])
+                else:
+                    logger.debug('user does not have admin perms, ignoring permissions')
+
+                # remove permissions from extra data so it does not
+                # get stored in the catch-all json field
+                del data['permissions']
+
+            return data
+
+        def user_permissions(self):
+            '''Queryset of :class:`guardian.model.UserObjectPermission`
+            objects associated with this annotation.'''
+            return UserObjectPermission.objects.filter(object_pk=self.pk)
+
+        def group_permissions(self):
+            '''Queryset of :class:`guardian.model.GroupObjectPermission`
+            objects associated with this annotation.'''
+            return GroupObjectPermission.objects.filter(object_pk=self.pk)
+
+        def get_group_or_user(self, ident):
+            # look up annotation group or user based on username
+            # or group id in annotation permissions list
+            if ident.startswith('group:'):
+                group_id = ident[len('group:'):]
+                try:
+                    return AnnotationGroup.objects.get(id=int(group_id))
+                except ValueError:
+                    # non-integer identifier found
+                    logger.warn("Invalid group id '%s' in annotation %s permissions",
+                                group_id, self.pk)
+                except AnnotationGroup.DoesNotExist:
+                    logger.warn("Error finding group '%s' in annotation %s permissions",
+                                group_id, self.pk)
+            else:
+                try:
+                    return User.objects.get(username=ident)
+                except User.DoesNotExist:
+                    logger.warn("Error finding user '%s' in annotation %s permissions",
+                                ident, self.pk)
+
+        def assign_permission(self, permission, entity):
+            """Wrapper around :meth:`guardian.shortcuts.assign_perm`.
+            Gives the specified permission to the specified user or group
+            on the current object.
+            """
+            assign_perm(permission, entity, self)
+
+        def db_permissions(self, permissions):
+            '''Convert annotation permission data into actionable
+            django permissions using :mod:`guardian` per-object permissions.
+            '''
+            # since there is no way to know what permissions were
+            # previously in place and need to be removed, remove all permissions
+            self.user_permissions().delete()
+            self.group_permissions().delete()
+
+            # NOTE: should eventually handle special case
+            # group:__world__, but setting that is currently not supported
+            # by the readux annotator permissions module
+
+            # then re-assign permissions based on annotation permissions
+            for mode, users in six.iteritems(permissions):
+                for ident in users:
+                    entity = self.get_group_or_user(ident)
+                    if entity is not None:
+                        # give user/group the appropriate permission on this object
+                        self.assign_permission(self.permission_to_codename[mode],
+                                               entity)
+
+        def grant_user_access(self):
+            if self.user is not None:   # possibly also check anonymous?
+                for perm in get_perms_for_model(self):
+                    # skip default django add permission - not relevant
+                    # on an individual object
+                    if perm.codename == 'add_annotation':
+                        continue
+                    self.assign_permission(perm.codename, self.user)
+
+        def permissions_dict(self):
+            '''Convert stored :mod:`guardian` per-object permissions into
+            annotation permission dictionary format'''
+            # convert db permissions into annotator style permissions
+
+            # construct base permissions dict, empty list for each mode
+            permissions = dict([(mode, [])
+                               for mode in self.permission_to_codename.keys()])
+
+            for user_perm in self.user_permissions():
+                # convert db codename to annotation mode
+                mode = self.codename_to_permission[user_perm.permission.codename]
+                # store by username
+                permissions[mode].append(user_perm.user.username)
+
+            for group_perm in self.group_permissions():
+                mode = self.codename_to_permission[group_perm.permission.codename]
+                permissions[mode].append(group_perm.group.annotationgroup.annotation_id)
+
+            return permissions
+
+        def user_has_perm(self, user, permission):
+            'Check if a user has a specific permission on this object.'
+            # NOTE: according to guardian docs, it should work to use this
+            # user.has_perm(permission, self)
+            # but that check fails when it should not.
+            return permission in get_perms(user, self)
+
+        def user_can_view(self, user):
+            return self.user_has_perm(user, 'view_annotation')
+
+        def user_can_update(self, user):
+            return self.user_has_perm(user, 'change_annotation')
+
+        def user_can_delete(self, user):
+            return self.user_has_perm(user, 'delete_annotation')
+
+
+    class AnnotationGroup(Group):
+        """Annotation Group; extends :class:`django.contrib.auth.models.Group`.
+
+        Intended to facilitate group permissions on annotations.
         """
-        assign_perm(permission, entity, self)
+        # inherits name from Group
+        #: optional notes field
+        notes = models.TextField(blank=True)
+        #: datetime annotation was created; automatically set when added
+        created = models.DateTimeField(auto_now_add=True)
+        #: datetime annotation was last updated; automatically updated on save
+        updated = models.DateTimeField(auto_now=True)
 
-    def db_permissions(self, permissions):
-        '''Convert annotation permission data into actionable
-        django permissions using :mod:`guardian` per-object permissions.
-        '''
-        # since there is no way to know what permissions were
-        # previously in place and need to be removed, remove all permissions
-        self.user_permissions().delete()
-        self.group_permissions().delete()
+        def num_members(self):
+            return self.user_set.count()
+        num_members.short_description = '# members'
 
-        # NOTE: should eventually handle special case
-        # group:__world__, but setting that is currently not supported
-        # by the readux annotator permissions module
+        def __repr__(self):
+            return '<Annotation Group: %s>' % self.name
 
-        # then re-assign permissions based on annotation permissions
-        for mode, users in six.iteritems(permissions):
-            for ident in users:
-                entity = self.get_group_or_user(ident)
-                if entity is not None:
-                    # give user/group the appropriate permission on this object
-                    self.assign_permission(self.permission_to_codename[mode],
-                                           entity)
-
-    def grant_user_access(self):
-        if self.user is not None:   # possibly also check anonymous?
-            for perm in get_perms_for_model(self):
-                # skip default django add permission - not relevant
-                # on an individual object
-                if perm.codename == 'add_annotation':
-                    continue
-                self.assign_permission(perm.codename, self.user)
-
-    def permissions_dict(self):
-        '''Convert stored :mod:`guardian` per-object permissions into
-        annotation permission dictionary format'''
-        # convert db permissions into annotator style permissions
-
-        # construct base permissions dict, empty list for each mode
-        permissions = dict([(mode, [])
-                           for mode in self.permission_to_codename.keys()])
-
-        for user_perm in self.user_permissions():
-            # convert db codename to annotation mode
-            mode = self.codename_to_permission[user_perm.permission.codename]
-            # store by username
-            permissions[mode].append(user_perm.user.username)
-
-        for group_perm in self.group_permissions():
-            mode = self.codename_to_permission[group_perm.permission.codename]
-            permissions[mode].append(group_perm.group.annotationgroup.annotation_id)
-
-        return permissions
-
-    def user_has_perm(self, user, permission):
-        'Check if a user has a specific permission on this object.'
-        # NOTE: according to guardian docs, it should work to use this
-        # user.has_perm(permission, self)
-        # but that check fails when it should not.
-
-        return permission in get_perms(user, self)
-
-    def user_can_view(self, user):
-        return self.user_has_perm(user, 'view_annotation')
-
-    def user_can_update(self, user):
-        return self.user_has_perm(user, 'change_annotation')
-
-    def user_can_delete(self, user):
-        return self.user_has_perm(user, 'delete_annotation')
+        @property
+        def annotation_id(self):
+            return 'group:%d' % self.pk
 
 
 # if default annotation model is requested, define it here
 # otherwise, custom annotation model will be used
 if ANNOTATION_MODEL_NAME == "annotator_store.Annotation":
 
-    class Annotation(BaseAnnotation):
-        pass
+    if ANNOTATION_OBJECT_PERMISSIONS and guardian:
+
+        class Annotation(AnnotationWithPermissions):
+                pass
+
+    else:
+        class Annotation(BaseAnnotation):
+            pass
 
 
 def get_annotation_model():
@@ -451,26 +523,3 @@ def get_annotation_model():
     return app.get_model(model_name)
 
 
-class AnnotationGroup(Group):
-    """Annotation Group; extends :class:`django.contrib.auth.models.Group`.
-
-    Intended to facilitate group permissions on annotations.
-    """
-    # inherits name from Group
-    #: optional notes field
-    notes = models.TextField(blank=True)
-    #: datetime annotation was created; automatically set when added
-    created = models.DateTimeField(auto_now_add=True)
-    #: datetime annotation was last updated; automatically updated on save
-    updated = models.DateTimeField(auto_now=True)
-
-    def num_members(self):
-        return self.user_set.count()
-    num_members.short_description = '# members'
-
-    def __repr__(self):
-        return '<Annotation Group: %s>' % self.name
-
-    @property
-    def annotation_id(self):
-        return 'group:%d' % self.pk
