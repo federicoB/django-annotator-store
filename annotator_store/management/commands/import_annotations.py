@@ -15,7 +15,6 @@ class Command(BaseCommand):
             help='JSON file with annotation data')
 
     def handle(self, *args, **options):
-        print options['file']
         with open(options['file']) as datafile:
             data = json.loads(datafile.read())
 
