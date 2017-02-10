@@ -8,13 +8,18 @@ except ImportError:
 import uuid
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.core.urlresolvers import reverse, resolve
 from django.test import TestCase
 from django.test.utils import override_settings
-from guardian.shortcuts import remove_perm
+try:
+    from guardian.shortcuts import remove_perm
+except ImportError:
+    remove_perm = None
 import six
 
 from .models import Annotation, ANNOTATION_OBJECT_PERMISSIONS
+
 if ANNOTATION_OBJECT_PERMISSIONS:
     # annotation group is only defined when permissions are enabled
     from .models import AnnotationGroup
@@ -377,6 +382,7 @@ class AnnotationViewsTest(TestCase):
 
     def test_list_annotations(self):
         notes = Annotation.objects.all()
+        user_notes = notes.filter(user__username='testuser')
 
         # anonymous user should see no notes
         resp = self.client.get(reverse('annotation-api:annotations'))
@@ -388,10 +394,23 @@ class AnnotationViewsTest(TestCase):
         self.client.login(**self.user_credentials['user'])
         resp = self.client.get(reverse('annotation-api:annotations'))
         data = json.loads(resp.content.decode())
-        # notes by this user should be listed
-        user_notes = notes.filter(user__username='testuser')
-        self.assertEqual(user_notes.count(), len(data))
-        self.assertEqual(data[0]['id'], str(user_notes[0].id))
+
+        if ANNOTATION_OBJECT_PERMISSIONS:
+            # when per-object permissions are enabled, notes should
+            # automatically be filtered to this user
+            self.assertEqual(user_notes.count(), len(data))
+            self.assertEqual(data[0]['id'], str(user_notes[0].id))
+        else:
+            # without per-object permissions, user won't see anything
+            assert len(data) == 0
+
+            # add view permission and search again - should see all notes
+            view_perm = Permission.objects.get(codename='view_annotation')
+            testuser = get_user_model().objects.get(username='testuser')
+            testuser.user_permissions.add(view_perm)
+            resp = self.client.get(reverse('annotation-api:annotations'))
+            data = json.loads(resp.content.decode())
+            assert len(data) == notes.count()
 
         # log in as superuser
         self.client.login(**self.user_credentials['superuser'])
@@ -403,35 +422,40 @@ class AnnotationViewsTest(TestCase):
         self.assertEqual(data[1]['id'], str(notes[1].id))
 
         # test group permissions
-        self.client.login(**self.user_credentials['user'])
-        # reassign testuser notes to superuser
-        superuser_name = self.user_credentials['superuser']['username']
-        user = get_user_model().objects.get(username='testuser')
-        superuser = get_user_model().objects.get(username=superuser_name)
-        for note in user_notes:
-            note.user = superuser
-            note.save()
-            # manually remove the permission, since the model
-            # does not expect annotation owners to change
-            remove_perm('view_annotation', user, note)
+        if ANNOTATION_OBJECT_PERMISSIONS:
+            # group permissions are only enabled when per-object permissions
+            # are turned on
 
-        group = AnnotationGroup.objects.create(name='annotation group')
-        group.user_set.add(user)
-        group.save()
+            self.client.login(**self.user_credentials['user'])
+            # reassign testuser notes to superuser
+            superuser_name = self.user_credentials['superuser']['username']
+            user = get_user_model().objects.get(username='testuser')
+            superuser = get_user_model().objects.get(username=superuser_name)
+            for note in user_notes:
+                note.user = superuser
+                note.save()
+                # manually remove the permission, since the model
+                # does not expect annotation owners to change
+                if remove_perm:
+                    remove_perm('view_annotation', user, note)
 
-        resp = self.client.get(reverse('annotation-api:annotations'))
-        data = json.loads(resp.content.decode())
-        # user should not have access to any notes
-        self.assertEqual(0, len(data))
+            group = AnnotationGroup.objects.create(name='annotation group')
+            group.user_set.add(user)
+            group.save()
 
-        # update first note with group read permissions
-        user_notes[0].db_permissions({'read': [group.annotation_id]})
+            resp = self.client.get(reverse('annotation-api:annotations'))
+            data = json.loads(resp.content.decode())
+            # user should not have access to any notes
+            self.assertEqual(0, len(data))
 
-        resp = self.client.get(reverse('annotation-api:annotations'))
-        data = json.loads(resp.content.decode())
-        # user should have access to any notes by group permissiosn
-        self.assertEqual(1, len(data))
-        self.assertEqual(data[0]['id'], str(notes[0].id))
+            # update first note with group read permissions
+            user_notes[0].db_permissions({'read': [group.annotation_id]})
+
+            resp = self.client.get(reverse('annotation-api:annotations'))
+            data = json.loads(resp.content.decode())
+            # user should have access to any notes by group permissiosn
+            self.assertEqual(1, len(data))
+            self.assertEqual(data[0]['id'], str(notes[0].id))
 
     def test_create_annotation(self):
         url = reverse('annotation-api:annotations')
@@ -482,6 +506,13 @@ class AnnotationViewsTest(TestCase):
 
         # log in as a regular user
         self.client.login(**self.user_credentials['user'])
+        testuser = get_user_model().objects.get(username='testuser')
+        view_perm = Permission.objects.get(codename='view_annotation')
+
+        # if per-object permissions are not enabled, grant view permission
+        if not ANNOTATION_OBJECT_PERMISSIONS:
+            testuser.user_permissions.add(view_perm)
+
         resp = self.client.get(reverse('annotation-api:view',
             kwargs={'id': self.user_note.id}))
         self.assertEqual('application/json', resp['Content-Type'])
@@ -492,6 +523,11 @@ class AnnotationViewsTest(TestCase):
         self.assertEqual(self.user_note.created.isoformat(), data['created'])
 
         # logged in but trying to view someone else's note
+
+        # if per-object permissions are not enabled, remove view permission
+        if not ANNOTATION_OBJECT_PERMISSIONS:
+            testuser.user_permissions.remove(view_perm)
+
         resp = self.client.get(reverse('annotation-api:view',
             kwargs={'id': self.superuser_note.id}),
             HTTP_X_REQUESTED_WITH='XMLHttpRequest')
@@ -524,10 +560,22 @@ class AnnotationViewsTest(TestCase):
 
         # log in as a regular user
         self.client.login(**self.user_credentials['user'])
+        view_perm = Permission.objects.get(codename='view_annotation')
+        update_perm = Permission.objects.get(codename='change_annotation')
+
+        # if per-object permissions are enabled, by default user has
+        # update access to their own annotations; when testing with
+        # normal django permissions, give the user view & change permissions
+        if not ANNOTATION_OBJECT_PERMISSIONS:
+            testuser = get_user_model().objects.get(username='testuser')
+            testuser.user_permissions.add(view_perm)
+            testuser.user_permissions.add(update_perm)
+
         resp = self.client.put(url,
             data=six.b(json.dumps(AnnotationTestCase.annotation_data)),
             content_type='application/json',
             HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+
         self.assertEqual(303, resp.status_code,
             'expected 303 See Other on succesful annotation update, got %s' \
             % resp.status_code)
@@ -541,6 +589,12 @@ class AnnotationViewsTest(TestCase):
             n1.quote)
         self.assertEqual(AnnotationTestCase.annotation_data['ranges'],
             n1.extra_data['ranges'])
+
+        # if per-object permissions are enabled, by default user ONLY has
+        # update access to their own annotations; when testing with
+        # normal django permissions, remove blanket change permissions
+        if not ANNOTATION_OBJECT_PERMISSIONS:
+            testuser.user_permissions.remove(update_perm)
 
         # logged in but trying to edit someone else's note
         resp = self.client.put(reverse('annotation-api:view',
@@ -581,6 +635,16 @@ class AnnotationViewsTest(TestCase):
 
         # log in as a regular user
         self.client.login(**self.user_credentials['user'])
+        # if per-object permissions are enabled, users can delete their own
+        # annotations; otherwise, simulate by giving blanket delete
+        # (needs view perm also - must be able to view an annotation to delete it)
+        if not ANNOTATION_OBJECT_PERMISSIONS:
+            view_perm = Permission.objects.get(codename='view_annotation')
+            delete_perm = Permission.objects.get(codename='delete_annotation')
+            testuser = get_user_model().objects.get(username='testuser')
+            testuser.user_permissions.add(view_perm)
+            testuser.user_permissions.add(delete_perm)
+
         resp = self.client.delete(url,
             HTTP_X_REQUESTED_WITH='XMLHttpRequest')
         self.assertEqual(204, resp.status_code,
@@ -590,6 +654,11 @@ class AnnotationViewsTest(TestCase):
             'deletion response should have no content')
 
         # attempt to delete other user's note
+
+        # if per-object permissions are not enabled, remove delete perm
+        if not ANNOTATION_OBJECT_PERMISSIONS:
+            testuser.user_permissions.remove(delete_perm)
+
         url = reverse('annotation-api:view', kwargs={'id': self.superuser_note.id})
         resp = self.client.delete(url,
             HTTP_X_REQUESTED_WITH='XMLHttpRequest')
@@ -602,6 +671,8 @@ class AnnotationViewsTest(TestCase):
     def test_search_annotations(self):
         search_url = reverse('annotation-api:search')
         notes = Annotation.objects.all()
+        # user notes created by the test user
+        user_notes = notes.filter(user__username=self.user_credentials['user']['username'])
         # search on partial text match
         resp = self.client.get(search_url, {'text': 'what a'})
         self.assertEqual('application/json', resp['Content-Type'])
@@ -613,11 +684,25 @@ class AnnotationViewsTest(TestCase):
         # login as regular user
         self.client.login(**self.user_credentials['user'])
         resp = self.client.get(search_url, {'text': 'what a'})
-        # returned notes should automatically be filtered by user
-        user_notes = notes.filter(user__username=self.user_credentials['user']['username'])
         data = json.loads(resp.content.decode())
-        self.assertEqual(user_notes.count(), data['total'])
-        self.assertEqual(str(user_notes[0].id), data['rows'][0]['id'])
+
+        if ANNOTATION_OBJECT_PERMISSIONS:
+            # when per-object permissions are enabled, returned notes should
+            # automatically be filtered by user
+            self.assertEqual(user_notes.count(), data['total'])
+            self.assertEqual(str(user_notes[0].id), data['rows'][0]['id'])
+
+        else:
+            # without per-object permissions, by default user can't view
+            assert data['total'] == 0
+
+            # add view permission and search again - should see all notes
+            view_perm = Permission.objects.get(codename='view_annotation')
+            testuser = get_user_model().objects.get(username='testuser')
+            testuser.user_permissions.add(view_perm)
+            resp = self.client.get(search_url, {'text': 'what a'})
+            data = json.loads(resp.content.decode())
+            assert data['total'] == notes.count()
 
         # login as superuser - should see all notes
         self.client.login(**self.user_credentials['superuser'])

@@ -37,7 +37,7 @@ class AnnotationQuerySet(models.QuerySet):
         """
         Return annotations the specified user is allowed to view.
         Objects are found based on view_annotation permission and
-        per-object permissions.  Generally, superusers can view all
+
         annotations; users can access only their own annotations or
         those where permissions have been granted to a group they belong to.
 
@@ -48,12 +48,24 @@ class AnnotationQuerySet(models.QuerySet):
             chain as querysets normally do.
 
         """
-        qs = get_objects_for_user(user, 'view_annotation',
-                                  get_annotation_model())
-        # combine the current queryset query, if any, with the newly
-        # created queryset from django guardian
-        qs.query.combine(self.query, 'AND')
-        return qs
+
+        # if per-object permissions are enabled, use guardian to find
+        # annotations the current user can view
+        if ANNOTATION_OBJECT_PERMISSIONS:
+            qs = get_objects_for_user(user, 'view_annotation',
+                                      get_annotation_model())
+            # combine the current queryset query, if any, with the newly
+            # created queryset from django guardian
+            qs.query.combine(self.query, 'AND')
+            return qs
+
+        else:
+            # otherwise, return everything or nothing based on django perms
+            if user.has_perm('annotator_store.view_annotation'):
+                return self.filter()
+            else:
+                # empty queryset if user doesn't have view permission
+                return self.none()
 
     def visible_to_group(self, group):
         """
@@ -68,12 +80,19 @@ class AnnotationQuerySet(models.QuerySet):
             normally do.
 
         """
-        qs = get_objects_for_group(group, 'view_annotation',
-                                   get_annotation_model())
-        # combine current queryset query, if any, with the newly
-        # created queryset from django guardian
-        qs.query.combine(self.query, 'AND')
-        return qs
+
+        # group permissions are only enabled when per-object permissions
+        # are turned on
+        if ANNOTATION_OBJECT_PERMISSIONS:
+            qs = get_objects_for_group(group, 'view_annotation',
+                                       get_annotation_model())
+            # combine current queryset query, if any, with the newly
+            # created queryset from django guardian
+            qs.query.combine(self.query, 'AND')
+            return qs
+
+        else:
+            return self.filter()
 
     def last_created_time(self):
         '''Creation time of the most recently created annotation. If
@@ -296,6 +315,20 @@ class BaseAnnotation(models.Model):
                      if k not in info})
 
         return info
+
+    # generic django permission checks; methods are provided for consistency
+    # with optional per-object permissions
+
+    def user_can_view(self, user):
+        return user.has_perm('annotator_store.view_annotation')
+
+    def user_can_update(self, user):
+        return user.has_perm('annotator_store.change_annotation')
+        return self.user_has_perm(user, 'change_annotation')
+
+    def user_can_delete(self, user):
+        return user.has_perm('annotator_store.delete_annotation')
+
 
 
 # if per-object permissions are requested and guardian is installed
