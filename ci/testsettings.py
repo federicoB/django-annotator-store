@@ -40,7 +40,7 @@ ROOT_URLCONF = 'annotator_store.test_urls'
 # ANNOTATOR_ANNOTATION_MODEL = "annotator_store.Annotation"
 
 # enable or disable permissions testing based on true/false environment variable
-ANNOTATION_OBJECT_PERMISSIONS = os.environ['PERMISSIONS']
+ANNOTATION_OBJECT_PERMISSIONS = os.environ.get('PERMISSIONS', False)
 
 if ANNOTATION_OBJECT_PERMISSIONS:
     print('Enabling per-object permissions and django-guardian')
