@@ -35,6 +35,7 @@ setup(
     tests_require=TEST_REQUIREMENTS,
     extras_require={
         'test': TEST_REQUIREMENTS,
+        'docs': ['sphinx'],
     },
     author='CDH @ Princeton',
     author_email='digitalhumanities@princeton.edu',
@@ -51,5 +52,6 @@ setup(
         'Programming Language :: Python :: 3',
         # NOTE: test/support other 3.x python versions?
         'Programming Language :: Python :: 3.5',
+        'Development Status :: 3 - Alpha'
     ],
 )

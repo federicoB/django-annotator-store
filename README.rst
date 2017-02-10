@@ -7,7 +7,7 @@ Django-Annotator-Store
    :target: https://travis-ci.org/Princeton-CDH/django-annotator-store
    :alt: Build Status
 .. image:: https://codecov.io/gh/Princeton-CDH/django-annotator-store/branch/feature/extract-annotator-store/graph/badge.svg
-  :target: https://codecov.io/gh/Princeton-CDH/django-annotator-store
+   :target: https://codecov.io/gh/Princeton-CDH/django-annotator-store
    :alt: Code Coverage
 .. image:: https://landscape.io/github/Princeton-CDH/django-annotator-store/feature/extract-annotator-store/landscape.svg?style=flat
    :target: https://landscape.io/github/Princeton-CDH/django-annotator-store/feature/extract-annotator-store
@@ -21,7 +21,7 @@ application meant for use within a Django project as an
 `annotator.js <https://github.com/openannotation/annotator>`_ 2.x annotation
 store backend, and implements the `Annotator Storage API <http://docs.annotatorjs.org/en/latest/modules/storage.html?highlight=store#storage-api>`_.
 
-**annotator_store** was originally created as a component of
+**annotator_store** was originally develop as a component of
 `Readux <https://github.com/emory-libraries/readux>`_.
 
 
@@ -129,5 +129,19 @@ configurations.
 
     pip install -e '.[test]'
     py.test
+
+
+Sphinx Documentation
+^^^^^^^^^^^^^^^^^^^^
+
+- To work with the sphinx documentation, install `sphinx` directly via pip
+  or via::
+
+    pip install -e '.[docs]'
+
+- Documentation can be built in the `docs` directory using::
+
+    make html
+
 
 
