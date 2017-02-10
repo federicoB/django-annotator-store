@@ -12,6 +12,7 @@ from .models import get_annotation_model
 from .utils import absolutize_url
 
 
+# get and use configured annotation model
 Annotation = get_annotation_model()
 
 

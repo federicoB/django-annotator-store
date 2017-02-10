@@ -2,7 +2,10 @@ from django import forms
 from django.contrib import admin
 from django.contrib.auth.models import User, Group
 
-from .models import Annotation, AnnotationGroup
+from .models import get_annotation_model, AnnotationGroup
+
+
+Annotation = get_annotation_model()
 
 
 class AnnotationAdmin(admin.ModelAdmin):

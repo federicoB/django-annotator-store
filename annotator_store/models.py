@@ -5,6 +5,7 @@ import uuid
 from django.apps import apps
 from django.db import models
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.urlresolvers import reverse
 from django.contrib.auth.models import Group, User
 from django.utils.html import format_html
@@ -41,7 +42,7 @@ class AnnotationQuerySet(models.QuerySet):
 
         """
         qs = get_objects_for_user(user, 'view_annotation',
-                                    Annotation)
+                                  get_annotation_model())
         # combine the current queryset query, if any, with the newly
         # created queryset from django guardian
         qs.query.combine(self.query, 'AND')
@@ -61,7 +62,7 @@ class AnnotationQuerySet(models.QuerySet):
 
         """
         qs = get_objects_for_group(group, 'view_annotation',
-                                   Annotation)
+                                   get_annotation_model())
         # combine current queryset query, if any, with the newly
         # created queryset from django guardian
         qs.query.combine(self.query, 'AND')
@@ -72,7 +73,7 @@ class AnnotationQuerySet(models.QuerySet):
         queryset is empty, returns None.'''
         try:
             return self.values_list('created', flat=True).latest('created')
-        except Annotation.DoesNotExist:
+        except ObjectDoesNotExist:
             pass
 
     def last_updated_time(self):
@@ -80,7 +81,7 @@ class AnnotationQuerySet(models.QuerySet):
         queryset is empty, returns None.'''
         try:
             return self.values_list('created', flat=True).latest('created')
-        except Annotation.DoesNotExist:
+        except ObjectDoesNotExist:
             pass
 
 
@@ -221,7 +222,7 @@ class BaseAnnotation(models.Model):
         model_data = {}
         extra_data = {}
         for k, v in six.iteritems(data):
-            if k in Annotation.common_fields:
+            if k in BaseAnnotation.common_fields:
                 model_data[k] = v
             else:
                 extra_data[k] = v
@@ -436,6 +437,8 @@ class BaseAnnotation(models.Model):
         return self.user_has_perm(user, 'delete_annotation')
 
 
+# if default annotation model is requested, define it here
+# otherwise, custom annotation model will be used
 if ANNOTATION_MODEL_NAME == "annotator_store.Annotation":
 
     class Annotation(BaseAnnotation):
