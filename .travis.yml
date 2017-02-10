@@ -5,11 +5,11 @@ python:
   - "3.5"
 
 env:
-  - DJANGO=1.8
-  - DJANGO=1.9
-  - DJANGO=1.10
-  - PERMISSIONS=true
-  - PERMISSIONS=false
+  - DJANGO=1.8 PERMISSIONS=true
+  - DJANGO=1.8 PERMISSIONS=false
+  - DJANGO=1.9 PERMISSIONS=true
+  - DJANGO=1.10 PERMISSIONS=true
+  - DJANGO=1.10 PERMISSIONS=false
 
 before_install:
   - pip install --upgrade pytest
