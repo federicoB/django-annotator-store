@@ -2,9 +2,6 @@
 #
 
 export PYTHONPATH:=$(PYTHONPATH):.:..
-# sphinx needs django settings while loading eullocal.django.* to introspect
-# those modules for autodocs
-export DJANGO_SETTINGS_MODULE=readux.settings
 
 
 # You can set these variables from the command line.
@@ -91,17 +88,17 @@ qthelp:
 	@echo
 	@echo "Build finished; now you can run "qcollectiongenerator" with the" \
 	      ".qhcp project file in $(BUILDDIR)/qthelp, like this:"
-	@echo "# qcollectiongenerator $(BUILDDIR)/qthelp/Readux.qhcp"
+	@echo "# qcollectiongenerator $(BUILDDIR)/qthelp/annotator-store.qhcp"
 	@echo "To view the help file:"
-	@echo "# assistant -collectionFile $(BUILDDIR)/qthelp/Readux.qhc"
+	@echo "# assistant -collectionFile $(BUILDDIR)/qthelp/annotator-store.qhc"
 
 devhelp:
 	$(SPHINXBUILD) -b devhelp $(ALLSPHINXOPTS) $(BUILDDIR)/devhelp
 	@echo
 	@echo "Build finished."
 	@echo "To view the help file:"
-	@echo "# mkdir -p $$HOME/.local/share/devhelp/Readux"
-	@echo "# ln -s $(BUILDDIR)/devhelp $$HOME/.local/share/devhelp/Readux"
+	@echo "# mkdir -p $$HOME/.local/share/devhelp/annotator-store"
+	@echo "# ln -s $(BUILDDIR)/devhelp $$HOME/.local/share/devhelp/annotator-store"
 	@echo "# devhelp"
 
 epub:

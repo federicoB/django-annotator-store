@@ -8,11 +8,8 @@ Contents:
 .. toctree::
    :maxdepth: 1
 
-   deploynotes
-   architecture
    codedocs
    Version History <changelog>
-   devnotes
 
 .. include:: ../README.rst
 
