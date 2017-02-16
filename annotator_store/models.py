@@ -213,7 +213,8 @@ class BaseAnnotation(models.Model):
 
     def text_preview(self):
         'Short preview of annotation text content'
-        return self.text[:100] + ('...' if len(self.text) > 100 else '')
+        if self.text:
+            return self.text[:100] + ('...' if len(self.text) > 100 else '')
     text_preview.short_description = 'Text'
 
     def uri_link(self):
