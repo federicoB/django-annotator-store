@@ -8,7 +8,7 @@ except ImportError:
 import uuid
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Permission
+from django.contrib.auth.models import Permission, AnonymousUser
 from django.core.urlresolvers import reverse, resolve
 from django.test import TestCase
 from django.test.utils import override_settings
@@ -74,7 +74,7 @@ class AnnotationTestCase(TestCase):
 
     def setUp(self):
         # use mock to simulate django httprequest
-        self.mockrequest = Mock()
+        self.mockrequest = Mock(user=get_user_model().objects.get(username='testuser'))
         self.mockrequest.body = six.b(json.dumps(self.annotation_data))
 
     def test_create_from_request(self):
@@ -85,7 +85,9 @@ class AnnotationTestCase(TestCase):
         self.assert_('ranges' in note.extra_data)
         self.assertEqual(self.annotation_data['ranges'][0]['start'],
             note.extra_data['ranges'][0]['start'])
-        self.assert_('permissions' in note.extra_data)
+        # this behavior changes when permissions are enabled
+        if not ANNOTATION_OBJECT_PERMISSIONS:
+            self.assert_('permissions' in note.extra_data)
 
         # create from request with user specified
         user = get_user_model().objects.get(username='testuser')
@@ -173,7 +175,7 @@ if ANNOTATION_OBJECT_PERMISSIONS:
 
         def setUp(self):
             # use mock to simulate django httprequest
-            self.mockrequest = Mock()
+            self.mockrequest = Mock(user=get_user_model().objects.get(username='testuser'))
             self.mockrequest.body = six.b(json.dumps(self.annotation_data))
 
         def test_visible_to(self):
