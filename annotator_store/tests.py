@@ -16,6 +16,7 @@ try:
     from guardian.shortcuts import remove_perm
 except ImportError:
     remove_perm = None
+import pytest
 import six
 
 from .models import Annotation, ANNOTATION_OBJECT_PERMISSIONS
@@ -166,205 +167,205 @@ class AnnotationTestCase(TestCase):
             assert note.extra_data == {'foo': 'bar'}
 
 
-if ANNOTATION_OBJECT_PERMISSIONS:
+@pytest.mark.skipif(not ANNOTATION_OBJECT_PERMISSIONS,
+                    reason="can only be tested when permissions are enabled")
+class AnnotationPermissionsTestCase(TestCase):
+    fixtures = ['test_annotation_data.json']
 
-    class AnnotationPermissionsTestCase(TestCase):
-        fixtures = ['test_annotation_data.json']
+    annotation_data = AnnotationTestCase.annotation_data
 
-        annotation_data = AnnotationTestCase.annotation_data
+    def setUp(self):
+        # use mock to simulate django httprequest
+        self.mockrequest = Mock(user=get_user_model().objects.get(username='testuser'))
+        self.mockrequest.body = six.b(json.dumps(self.annotation_data))
 
-        def setUp(self):
-            # use mock to simulate django httprequest
-            self.mockrequest = Mock(user=get_user_model().objects.get(username='testuser'))
-            self.mockrequest.body = six.b(json.dumps(self.annotation_data))
+    def test_visible_to(self):
+        # delete fixture annotations and test only those created here
+        Annotation.objects.all().delete()
 
-        def test_visible_to(self):
-            # delete fixture annotations and test only those created here
-            Annotation.objects.all().delete()
+        testuser = get_user_model().objects.get(username='testuser')
+        testadmin = get_user_model().objects.get(username='testsuper')
 
-            testuser = get_user_model().objects.get(username='testuser')
-            testadmin = get_user_model().objects.get(username='testsuper')
+        Annotation.objects.create(user=testuser, text='foo')
+        Annotation.objects.create(user=testuser, text='bar')
+        Annotation.objects.create(user=testuser, text='baz')
+        Annotation.objects.create(user=testadmin, text='qux')
 
-            Annotation.objects.create(user=testuser, text='foo')
-            Annotation.objects.create(user=testuser, text='bar')
-            Annotation.objects.create(user=testuser, text='baz')
-            Annotation.objects.create(user=testadmin, text='qux')
+        self.assertEqual(3, Annotation.objects.visible_to(testuser).count())
+        self.assertEqual(4, Annotation.objects.visible_to(testadmin).count())
 
-            self.assertEqual(3, Annotation.objects.visible_to(testuser).count())
-            self.assertEqual(4, Annotation.objects.visible_to(testadmin).count())
+    def test_update_from_request(self):
+        # create test note to update
+        note = Annotation(text="Here's the thing", quote="really",
+            extra_data=json.dumps({'sample data': 'foobar'}))
+        note.save()
 
-        def test_update_from_request(self):
-            # create test note to update
-            note = Annotation(text="Here's the thing", quote="really",
-                extra_data=json.dumps({'sample data': 'foobar'}))
-            note.save()
+        # permissions check requires a real user
+        user = get_user_model().objects.get(username='testuser')
+        self.mockrequest.user = user
 
-            # permissions check requires a real user
-            user = get_user_model().objects.get(username='testuser')
-            self.mockrequest.user = user
+        with patch.object(note, 'db_permissions') as mock_db_perms:
+            note.update_from_request(self.mockrequest)
+            self.assertEqual(self.annotation_data['text'], note.text)
+            self.assertEqual(self.annotation_data['quote'], note.quote)
+            self.assertEqual(self.annotation_data['uri'], note.uri)
+            self.assert_('ranges' in note.extra_data)
+            self.assertEqual(self.annotation_data['ranges'][0]['start'],
+                note.extra_data['ranges'][0]['start'])
+            self.assert_('permissions' not in note.extra_data)
+            # existing extra data should no longer present
+            self.assert_('sample data' not in note.extra_data)
 
-            with patch.object(note, 'db_permissions') as mock_db_perms:
-                note.update_from_request(self.mockrequest)
-                self.assertEqual(self.annotation_data['text'], note.text)
-                self.assertEqual(self.annotation_data['quote'], note.quote)
-                self.assertEqual(self.annotation_data['uri'], note.uri)
-                self.assert_('ranges' in note.extra_data)
-                self.assertEqual(self.annotation_data['ranges'][0]['start'],
-                    note.extra_data['ranges'][0]['start'])
-                self.assert_('permissions' not in note.extra_data)
-                # existing extra data should no longer present
-                self.assert_('sample data' not in note.extra_data)
+            # testuser does not have admin on this annotation;
+            # permissions should not be updated
+            mock_db_perms.assert_not_called()
 
-                # testuser does not have admin on this annotation;
-                # permissions should not be updated
-                mock_db_perms.assert_not_called()
+            # give user admin permission and update again
+            note.assign_permission('admin_annotation', user)
+            note.update_from_request(self.mockrequest)
+            mock_db_perms.assert_called_with(self.annotation_data['permissions'])
 
-                # give user admin permission and update again
-                note.assign_permission('admin_annotation', user)
-                note.update_from_request(self.mockrequest)
-                mock_db_perms.assert_called_with(self.annotation_data['permissions'])
+    def test_user_permissions(self):
+        # annotation user/owner automatically gets permissions
+        user = get_user_model().objects.get(username='testuser')
+        note = Annotation.create_from_request(self.mockrequest)
+        note.user = user
+        note.save()
 
-        def test_user_permissions(self):
-            # annotation user/owner automatically gets permissions
-            user = get_user_model().objects.get(username='testuser')
-            note = Annotation.create_from_request(self.mockrequest)
-            note.user = user
-            note.save()
+        user_perms = note.user_permissions()
+        self.assertEqual(4, user_perms.count())
+        self.assert_(user_perms.filter(user=user,
+                                       permission__codename='view_annotation')
+                               .exists())
+        self.assert_(user_perms.filter(user=user,
+                                       permission__codename='change_annotation')
+                               .exists())
+        self.assert_(user_perms.filter(user=user,
+                                       permission__codename='delete_annotation')
+                               .exists())
+        self.assert_(user_perms.filter(user=user,
+                                       permission__codename='admin_annotation')
+                               .exists())
 
-            user_perms = note.user_permissions()
-            self.assertEqual(4, user_perms.count())
-            self.assert_(user_perms.filter(user=user,
-                                           permission__codename='view_annotation')
-                                   .exists())
-            self.assert_(user_perms.filter(user=user,
-                                           permission__codename='change_annotation')
-                                   .exists())
-            self.assert_(user_perms.filter(user=user,
+        note.save()
+        # saving again shouldn't duplicate the permissions
+        self.assertEqual(4, note.user_permissions().count())
+
+    def test_db_permissions(self):
+        note = Annotation.create_from_request(self.mockrequest)
+        note.save()
+        # get some users and groups to work with
+        user = get_user_model().objects.get(username='testuser')
+        group1 = AnnotationGroup.objects.create(name='foo')
+        group2 = AnnotationGroup.objects.create(name='foobar')
+
+        note.db_permissions({
+            'read': [user.username, group1.annotation_id,
+                     group2.annotation_id],
+            'update': [user.username, group1.annotation_id],
+            'delete': [user.username]
+        })
+
+        # inspect the db permissions created
+
+        # should be two total user permissions, one to view and one to change
+        user_perms = note.user_permissions()
+        self.assertEqual(3, user_perms.count())
+        self.assert_(user_perms.filter(user=user,
+                                       permission__codename='view_annotation')
+                               .exists())
+        self.assert_(user_perms.filter(user=user,
+                                       permission__codename='change_annotation')
+                               .exists())
+        self.assert_(user_perms.filter(user=user,
+                                       permission__codename='delete_annotation')
+                               .exists())
+
+        # should be three total group permissions
+        group_perms = note.group_permissions()
+        self.assertEqual(3, group_perms.count())
+        self.assert_(group_perms.filter(group=group1,
+                                        permission__codename='view_annotation')
+                                .exists())
+        self.assert_(group_perms.filter(group=group1,
+                                        permission__codename='change_annotation')
+                                .exists())
+        self.assert_(group_perms.filter(group=group2,
+                                        permission__codename='view_annotation')
+                                .exists())
+
+        # updating the permissions for the same note should
+        # remove permissions that no longer apply
+        note.db_permissions({
+            'read': [user.username, group1.annotation_id],
+            'update': [user.username],
+            'delete': []
+        })
+
+        # counts should reflect the changes
+        user_perms = note.user_permissions()
+        self.assertEqual(2, user_perms.count())
+        group_perms = note.group_permissions()
+        self.assertEqual(1, group_perms.count())
+
+        # permissions created before should be gone
+        self.assertFalse(user_perms.filter(user=user,
                                            permission__codename='delete_annotation')
                                    .exists())
-            self.assert_(user_perms.filter(user=user,
-                                           permission__codename='admin_annotation')
-                                   .exists())
-
-            note.save()
-            # saving again shouldn't duplicate the permissions
-            self.assertEqual(4, note.user_permissions().count())
-
-        def test_db_permissions(self):
-            note = Annotation.create_from_request(self.mockrequest)
-            note.save()
-            # get some users and groups to work with
-            user = get_user_model().objects.get(username='testuser')
-            group1 = AnnotationGroup.objects.create(name='foo')
-            group2 = AnnotationGroup.objects.create(name='foobar')
-
-            note.db_permissions({
-                'read': [user.username, group1.annotation_id,
-                         group2.annotation_id],
-                'update': [user.username, group1.annotation_id],
-                'delete': [user.username]
-            })
-
-            # inspect the db permissions created
-
-            # should be two total user permissions, one to view and one to change
-            user_perms = note.user_permissions()
-            self.assertEqual(3, user_perms.count())
-            self.assert_(user_perms.filter(user=user,
-                                           permission__codename='view_annotation')
-                                   .exists())
-            self.assert_(user_perms.filter(user=user,
-                                           permission__codename='change_annotation')
-                                   .exists())
-            self.assert_(user_perms.filter(user=user,
-                                           permission__codename='delete_annotation')
-                                   .exists())
-
-            # should be three total group permissions
-            group_perms = note.group_permissions()
-            self.assertEqual(3, group_perms.count())
-            self.assert_(group_perms.filter(group=group1,
-                                            permission__codename='view_annotation')
-                                    .exists())
-            self.assert_(group_perms.filter(group=group1,
+        self.assertFalse(group_perms.filter(group=group1,
                                             permission__codename='change_annotation')
                                     .exists())
-            self.assert_(group_perms.filter(group=group2,
+        self.assertFalse(group_perms.filter(group=group2,
                                             permission__codename='view_annotation')
                                     .exists())
 
-            # updating the permissions for the same note should
-            # remove permissions that no longer apply
-            note.db_permissions({
-                'read': [user.username, group1.annotation_id],
-                'update': [user.username],
-                'delete': []
-            })
+        # invalid group/user should not error
+        note.db_permissions({
+            'read': ['bogus', 'group:666', 'group:foo'],
+            'update': ['group:__world__'],
+            'delete': []
+        })
 
-            # counts should reflect the changes
-            user_perms = note.user_permissions()
-            self.assertEqual(2, user_perms.count())
-            group_perms = note.group_permissions()
-            self.assertEqual(1, group_perms.count())
-
-            # permissions created before should be gone
-            self.assertFalse(user_perms.filter(user=user,
-                                               permission__codename='delete_annotation')
-                                       .exists())
-            self.assertFalse(group_perms.filter(group=group1,
-                                                permission__codename='change_annotation')
-                                        .exists())
-            self.assertFalse(group_perms.filter(group=group2,
-                                                permission__codename='view_annotation')
-                                        .exists())
-
-            # invalid group/user should not error
-            note.db_permissions({
-                'read': ['bogus', 'group:666', 'group:foo'],
-                'update': ['group:__world__'],
-                'delete': []
-            })
-
-            self.assertEqual(0, note.user_permissions().count())
-            self.assertEqual(0, note.group_permissions().count())
+        self.assertEqual(0, note.user_permissions().count())
+        self.assertEqual(0, note.group_permissions().count())
 
 
-        def test_permissions_dict(self):
-            note = Annotation.create_from_request(self.mockrequest)
-            note.save()
-            # get some users and groups to work with
-            user = get_user_model().objects.get(username='testuser')
-            group1 = AnnotationGroup.objects.create(name='foo')
-            group2 = AnnotationGroup.objects.create(name='foobar')
+    def test_permissions_dict(self):
+        note = Annotation.create_from_request(self.mockrequest)
+        note.save()
+        # get some users and groups to work with
+        user = get_user_model().objects.get(username='testuser')
+        group1 = AnnotationGroup.objects.create(name='foo')
+        group2 = AnnotationGroup.objects.create(name='foobar')
 
-            perms = {
-                'read': [user.username, group1.annotation_id,
-                         group2.annotation_id],
-                'update': [user.username, group1.annotation_id],
-                'delete': [user.username],
-                'admin': []
-            }
-            # test round-trip: convert to db permissions and then back
-            note.db_permissions(perms)
-            self.assertEqual(perms, note.permissions_dict())
+        perms = {
+            'read': [user.username, group1.annotation_id,
+                     group2.annotation_id],
+            'update': [user.username, group1.annotation_id],
+            'delete': [user.username],
+            'admin': []
+        }
+        # test round-trip: convert to db permissions and then back
+        note.db_permissions(perms)
+        self.assertEqual(perms, note.permissions_dict())
 
-            perms = {
-                'read': [user.username, group1.annotation_id],
-                'update': [user.username],
-                'delete': [],
-                'admin': []
-            }
-            note.db_permissions(perms)
-            self.assertEqual(perms, note.permissions_dict())
+        perms = {
+            'read': [user.username, group1.annotation_id],
+            'update': [user.username],
+            'delete': [],
+            'admin': []
+        }
+        note.db_permissions(perms)
+        self.assertEqual(perms, note.permissions_dict())
 
-            perms = {
-                'read': [],
-                'update': [],
-                'delete': [],
-                'admin': []
-            }
-            note.db_permissions(perms)
-            self.assertEqual(perms, note.permissions_dict())
+        perms = {
+            'read': [],
+            'update': [],
+            'delete': [],
+            'admin': []
+        }
+        note.db_permissions(perms)
+        self.assertEqual(perms, note.permissions_dict())
 
 
 
