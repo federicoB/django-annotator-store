@@ -250,8 +250,14 @@ class BaseAnnotation(models.Model):
         if not request.user.is_anonymous():
             model_data['user'] = request.user
 
-        # convert extra data back to json for storage in a single json field
-        return cls(extra_data=json.dumps(extra_data), **model_data)
+        annotation = cls(extra_data=json.dumps(extra_data), **model_data)
+        # if extra data is present, handle any extra processing
+        # exactly the same as when updating an annotation
+        if annotation.extra_data:
+            annotation.extra_data = annotation.handle_extra_data(data, request)
+            annotation.save()
+
+        return annotation
 
     def update_from_request(self, request):
         '''Update attributes from data in a
@@ -279,7 +285,9 @@ class BaseAnnotation(models.Model):
 
         if data:
             # any other data included in the request and not yet
-            # processed should be stored as extra data
+            # processed should be stored as extra data.
+            # Allow subclasses to process any extra data they care about
+            # and then store whatever is left.
             # NOTE: replacing existing extra data rather than updating;
             # any extra data should have been included in the annotation
             # that was loaded for editing; using update would make it
@@ -290,8 +298,12 @@ class BaseAnnotation(models.Model):
 
     def handle_extra_data(self, data, request):
         '''Handle any "extra" data that is not part of the stock annotation
-        data model.  Use this method to customize the logic for updating
-        an annotation from request data.'''
+        data model.  Use this method to customize the logic for creating
+        and updating annotations from request data.
+
+        NOTE: request is passed in to support permissions handling
+        when object-level permissions are enabled.
+        '''
         return data
 
     def info(self):

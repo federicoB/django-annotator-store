@@ -30,6 +30,9 @@ if ANNOTATION_OBJECT_PERMISSIONS:
 # - could this be tested via travis-ci env settings?
 
 
+
+
+
 class AnnotationTestCase(TestCase):
     fixtures = ['test_annotation_data.json']
 
@@ -90,7 +93,6 @@ class AnnotationTestCase(TestCase):
         note = Annotation.create_from_request(self.mockrequest)
         self.assertEqual(user, note.user)
 
-
     def test_info(self):
         note = Annotation.create_from_request(self.mockrequest)
         note.save()  # save so created/updated will get set
@@ -144,7 +146,22 @@ class AnnotationTestCase(TestCase):
         note = Annotation()
         self.assertEqual(None, note.related_pages)
 
+    def test_handle_extra_data(self):
+        # test handle extra data method to check it is called appropriately
+        def test_handler(obj, data, request):
+            obj.quote += ' mischief managed!'
+            return {'foo': 'bar'}
 
+        with patch.object(Annotation, 'handle_extra_data', new=test_handler):
+            # should be called when creating a new object
+            note = Annotation.create_from_request(self.mockrequest)
+            assert note.quote.endswith('mischief managed!')
+            assert note.extra_data == {'foo': 'bar'}
+
+            # should be called when updating objects
+            note.update_from_request(self.mockrequest)
+            assert note.quote.endswith('mischief managed!')
+            assert note.extra_data == {'foo': 'bar'}
 
 
 if ANNOTATION_OBJECT_PERMISSIONS:
