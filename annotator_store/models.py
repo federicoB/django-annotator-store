@@ -230,8 +230,11 @@ class BaseAnnotation(models.Model):
             return self.extra_data['related_pages']
 
     @classmethod
-    def filter_data(cls, data):
-        filter_fields = cls.common_fields + cls.internal_fields
+    def filter_data(cls, data, internal_only=False):
+        if internal_only:
+            filter_fields = cls.internal_fields
+        else:
+            filter_fields = cls.common_fields + cls.internal_fields
         return {key: val for key, val in data.items()
                if key not in filter_fields}
 
@@ -278,18 +281,20 @@ class BaseAnnotation(models.Model):
         # NOTE: could keep a list of modified fields and
         # and allow Django to do a more efficient db update
 
+        # ignore backend-generated fields and remove so they are
+        # not duplicated in extra data
+        # NOTE: current implementation assumes that user should
+        # NOT be changed after annotation is created
+        data = self.filter_data(data, internal_only=True)
+
         # set database fields from data in the request
         for field in self.common_fields:
             try:
                 setattr(self, field, data[field])
+                # remove from data so it is not duplicated
+                del data[field]
             except KeyError:
                 pass
-
-        # ignore backend-generated fields, and don't internal
-        # or database fields in the extra data.
-        # NOTE: this behavior includes the assumption that user should
-        # NOT be changed after annotation is created
-        data = self.filter_data(data)
 
         if data:
             # any other data included in the request and not yet
