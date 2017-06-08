@@ -151,9 +151,9 @@ class BaseAnnotation(models.Model):
     #: datetime annotation was last updated; automatically updated on save
     updated = models.DateTimeField(auto_now=True)
     #: content of the annotation
-    text = models.TextField()
+    text = models.TextField(blank=True)
     #: the annotated text
-    quote = models.TextField()
+    quote = models.TextField(blank=True)
     #: URI of the annotated document
     uri = models.URLField()
     #: user who owns the annotation
