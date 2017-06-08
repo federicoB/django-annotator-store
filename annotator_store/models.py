@@ -185,10 +185,11 @@ class BaseAnnotation(models.Model):
 
     #: fields in the db model that are provided by annotation json
     #: when creating or updating an annotation
-    common_fields = ['text', 'quote', 'uri', 'user', 'volume_uri']
-    # NOTE: volume_uri is not strictly a 'common' field, since it would
-    # just be extra data to any other annotator backend, but we
-    # need it stored for searching and querying.
+    common_fields = ['text', 'quote', 'uri', 'user']
+    #: internal fields that are not set from values provided by
+    #: annotation json when creating or updating
+    internal_fields = ['updated', 'created', 'id', 'user',
+        'annotator_schema_version']
 
     objects = AnnotationManager()
 
@@ -229,6 +230,12 @@ class BaseAnnotation(models.Model):
             return self.extra_data['related_pages']
 
     @classmethod
+    def filter_data(cls, data):
+        filter_fields = cls.common_fields + cls.internal_fields
+        return {key: val for key, val in data.items()
+               if key not in filter_fields}
+
+    @classmethod
     def create_from_request(cls, request):
         '''Initialize a new :class:`Annotation` based on data from a
         :class:`django.http.HttpRequest`.
@@ -241,20 +248,24 @@ class BaseAnnotation(models.Model):
 
         model_data = {}
         extra_data = {}
-        for k, v in six.iteritems(data):
-            if k in BaseAnnotation.common_fields:
-                model_data[k] = v
+        for key, val in six.iteritems(data):
+            if key in BaseAnnotation.common_fields:
+                model_data[key] = val
             else:
-                extra_data[k] = v
+                extra_data[key] = val
 
         if not request.user.is_anonymous():
             model_data['user'] = request.user
+
+        # remove any common and internal fields from extra data so they
+        # don't get duplicated in the json field
+        extra_data = cls.filter_data(extra_data)
 
         annotation = cls(extra_data=json.dumps(extra_data), **model_data)
         # if extra data is present, handle any extra processing
         # exactly the same as when updating an annotation
         if annotation.extra_data:
-            annotation.extra_data = annotation.handle_extra_data(data, request)
+            annotation.extra_data = annotation.handle_extra_data(extra_data, request)
             annotation.save()
 
         return annotation
@@ -267,21 +278,18 @@ class BaseAnnotation(models.Model):
         # NOTE: could keep a list of modified fields and
         # and allow Django to do a more efficient db update
 
-        # ignore backend-generated fields, and don't include in
-        # the extra data
-        # NOTE: assuming for now that user should NOT be changed
-        # after annotation is created
-        for field in ['updated', 'created', 'id', 'user']:
+        # set database fields from data in the request
+        for field in self.common_fields:
             try:
-                del data[field]
+                setattr(self, field, data[field])
             except KeyError:
                 pass
 
-        # set any db fields, and remove from extra data
-        for field in self.common_fields:
-            if field in data:
-                setattr(self, field, data[field])
-                del data[field]
+        # ignore backend-generated fields, and don't internal
+        # or database fields in the extra data.
+        # NOTE: this behavior includes the assumption that user should
+        # NOT be changed after annotation is created
+        data = self.filter_data(data)
 
         if data:
             # any other data included in the request and not yet
