@@ -22,7 +22,7 @@ application meant for use within a Django project as an
 store backend, and implements the `Annotator Storage API <http://docs.annotatorjs.org/en/latest/modules/storage.html?highlight=store#storage-api>`_.
 
 **annotator_store** was originally develop as a component of
-`Readux <https://github.com/emory-libraries/readux>`_.
+`Readux <https://github.com/ecds/readux>`_.
 
 
 License
@@ -99,6 +99,15 @@ Django setings, e.g.::
 If you want per-object permissions on your annotation model, you should
 extend `annotator_store.models.AnnotationWithPermissions` rather than
 the base annotation class.
+
+.. NOTE::
+
+  Per-object permissions require that a `permissions plugin`_ be
+  included when you initialize your annotator.js Annotator object.
+  That code is currently available as a plugin in the `Readux codebase`_
+
+.. _permissios plugin: https://github.com/ecds/readux/blob/master/sitemedia/js/annotator/annotator.permissions.js
+.. _Readux codebase: https://github.com/ecds/readux
 
 Development instructions
 ------------------------
