@@ -187,7 +187,7 @@ class AnnotationSearch(View):
             if field == 'text':
                 notes = notes.filter(text__icontains=search_val)
             elif field == 'quote':
-                notes = notes.filter(text__icontains=search_val)
+                notes = notes.filter(quote__icontains=search_val)
             elif field == 'user':
                 notes = notes.filter(user__username=search_val)
             elif field in Annotation.common_fields:

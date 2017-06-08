@@ -9,6 +9,7 @@ import uuid
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission, AnonymousUser
+from django.contrib.sites.models import Site
 from django.core.urlresolvers import reverse, resolve
 from django.test import TestCase
 from django.test.utils import override_settings
@@ -20,18 +21,16 @@ import pytest
 import six
 
 from .models import Annotation, ANNOTATION_OBJECT_PERMISSIONS
+from .utils import absolutize_url
 
 if ANNOTATION_OBJECT_PERMISSIONS:
     # annotation group is only defined when permissions are enabled
     from .models import AnnotationGroup
 
 
-# TODO: how to test functionality when per-object permissions are
-# turned off and/or guardian is not installed?
-# - could this be tested via travis-ci env settings?
-
-
-
+# NOTE: per-object permissions are enabled based on
+# ANNOTATION_OBJECT_PERMISSIONS, which can be set via PERMISSIONS
+# environment variable for automated testing purposes
 
 
 class AnnotationTestCase(TestCase):
@@ -78,6 +77,19 @@ class AnnotationTestCase(TestCase):
         # use mock to simulate django httprequest
         self.mockrequest = Mock(user=get_user_model().objects.get(username='testuser'))
         self.mockrequest.body = six.b(json.dumps(self.annotation_data))
+
+    def test_unicode(self):
+        note = Annotation.create_from_request(self.mockrequest)
+        assert six.u(str(note)) == note.text
+
+    def test_repr(self):
+        note = Annotation.create_from_request(self.mockrequest)
+        assert repr(note) == '<Annotation: %s>' % note.text
+
+    def test_uri(self):
+        note = Annotation.create_from_request(self.mockrequest)
+        assert note.uri_link() == '<a href="%(uri)s">%(uri)s</a>' % \
+            {'uri': note.uri}
 
     def test_create_from_request(self):
         note = Annotation.create_from_request(self.mockrequest)
@@ -132,9 +144,9 @@ class AnnotationTestCase(TestCase):
         note.save()  # save so created/updated will get set
         assert note.created == Annotation.objects.all().last_created_time()
 
-    def last_updated_time(self):
+    def test_last_updated_time(self):
         Annotation.objects.all().delete()  # delete fixture annotations
-        assert Annotation.objects.all().last_updated_time() is NOne
+        assert Annotation.objects.all().last_updated_time() is None
 
         note = Annotation.create_from_request(self.mockrequest)
         note.save()  # save so created/updated will get set
@@ -522,6 +534,14 @@ class AnnotationViewsTest(TestCase):
         self.assertEqual(AnnotationTestCase.annotation_data['text'],
             note.text, 'annotation content should be set from request data')
 
+        # non ajax request gets a bad request response
+        resp = self.client.post(url,
+            data=json.dumps(AnnotationTestCase.annotation_data),
+            content_type='application/json')
+        assert resp.status_code == 400
+        assert 'Annotations can only be updated or created via AJAX' in \
+            resp.content
+
     def test_get_annotation(self):
         # not logged in - should be denied
         resp = self.client.get(reverse('annotation-api:view',
@@ -645,12 +665,22 @@ class AnnotationViewsTest(TestCase):
         n1 = Annotation.objects.get(id=self.user_note.id)
         self.assertEqual(data['text'], n1.text)
 
+        # non ajax request gets a bad request response
+        resp = self.client.put(reverse('annotation-api:view',
+            kwargs={'id': self.superuser_note.id}),
+            data=json.dumps(AnnotationTestCase.annotation_data),
+            content_type='application/json')
+        assert resp.status_code == 400
+        assert 'Annotations can only be updated or created via AJAX' in \
+            resp.content
+
         # test 404
         resp = self.client.put(reverse('annotation-api:view',
             kwargs={'id': str(uuid.uuid4())}),
             data=json.dumps(AnnotationTestCase.annotation_data),
             HTTP_X_REQUESTED_WITH='XMLHttpRequest')
         self.assertEqual(404, resp.status_code)
+
 
     def test_delete_annotation(self):
         # login/permission checking is common to get/update/delete views, but
@@ -754,6 +784,21 @@ class AnnotationViewsTest(TestCase):
         self.assertEqual(1, data['total'])
         self.assertEqual(str(user_notes[0].id), data['rows'][0]['id'])
 
+        # search by quoted text
+        resp = self.client.get(search_url, {'quote': 'matrimony'})
+        data = json.loads(resp.content.decode())
+        assert data['total'] == 1
+        assert data['rows'][0]['quote'] == 'MATRIMONY BY ADVERTISEMENT;'
+
+        # search by keyword - quote, text, or extra data
+        resp = self.client.get(search_url, {'keyword': 'what a'})
+        data = json.loads(resp.content.decode())
+        assert data['total'] == 2
+        resp = self.client.get(search_url, {'keyword': 'ranges'})
+        data = json.loads(resp.content.decode())
+        assert data['total'] == 2
+
+
         # limit/offset
         resp = self.client.get(search_url, {'limit': '1'})
         data = json.loads(resp.content.decode())
@@ -769,3 +814,31 @@ class AnnotationViewsTest(TestCase):
         resp = self.client.get(search_url, {'limit': 'three'})
         data = json.loads(resp.content.decode())
         self.assertEqual(notes.count(), data['total'])
+
+
+@pytest.mark.django_db
+def test_absolutize_url():
+    https_url = 'https://example.com/some/path/'
+    # https url is returned unchanged
+    assert absolutize_url(https_url) == https_url
+    # testing with default site domain
+    current_site = Site.objects.get_current()
+
+    # test site domain without https
+    current_site.domain = 'example.org'
+    current_site.save()
+    local_path = '/foo/bar/'
+    assert absolutize_url(local_path) == 'https://example.org/foo/bar/'
+    # trailing slash in domain doesn't result in double slash
+    current_site.domain = 'example.org/'
+    current_site.save()
+    assert absolutize_url(local_path) == 'https://example.org/foo/bar/'
+    # site at subdomain should work too
+    current_site.domain = 'example.org/sub/'
+    current_site.save()
+    assert absolutize_url(local_path) == 'https://example.org/sub/foo/bar/'
+    # site with https:// included
+    current_site.domain = 'https://example.org'
+    assert absolutize_url(local_path) == 'https://example.org/sub/foo/bar/'
+
+

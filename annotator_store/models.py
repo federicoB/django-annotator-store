@@ -106,7 +106,7 @@ class AnnotationQuerySet(models.QuerySet):
         '''Update time of the most recently created annotation. If
         queryset is empty, returns None.'''
         try:
-            return self.values_list('created', flat=True).latest('created')
+            return self.values_list('updated', flat=True).latest('updated')
         except ObjectDoesNotExist:
             pass
 
@@ -350,11 +350,9 @@ class BaseAnnotation(models.Model):
 
     def user_can_update(self, user):
         return user.has_perm('annotator_store.change_annotation')
-        return self.user_has_perm(user, 'change_annotation')
 
     def user_can_delete(self, user):
         return user.has_perm('annotator_store.delete_annotation')
-
 
 
 # if per-object permissions are requested and guardian is installed
