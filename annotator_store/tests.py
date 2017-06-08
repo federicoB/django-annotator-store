@@ -47,6 +47,7 @@ class AnnotationTestCase(TestCase):
         "text": "A note I wrote",
         "quote": "the text that was annotated",
         "uri": "http://example.com",
+        "user": "testuser",
         "ranges": [
             {
                "start": "/p[69]/span/span",
