@@ -540,7 +540,7 @@ class AnnotationViewsTest(TestCase):
             content_type='application/json')
         assert resp.status_code == 400
         assert 'Annotations can only be updated or created via AJAX' in \
-            resp.content
+            resp.content.decode()
 
     def test_get_annotation(self):
         # not logged in - should be denied
@@ -672,7 +672,7 @@ class AnnotationViewsTest(TestCase):
             content_type='application/json')
         assert resp.status_code == 400
         assert 'Annotations can only be updated or created via AJAX' in \
-            resp.content
+            resp.content.decode()
 
         # test 404
         resp = self.client.put(reverse('annotation-api:view',

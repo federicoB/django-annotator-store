@@ -128,6 +128,7 @@ class AnnotationManager(models.Manager):
         return self.get_queryset().visible_to_group(group)
 
 
+@six.python_2_unicode_compatible
 class BaseAnnotation(models.Model):
     '''Django database model to store Annotator.js annotation data,
     based on the
@@ -202,7 +203,7 @@ class BaseAnnotation(models.Model):
             ('admin_annotation', 'Manage annotation'),
         )
 
-    def __unicode__(self):
+    def __str__(self):
         return self.text
 
     def __repr__(self):
