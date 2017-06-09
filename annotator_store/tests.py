@@ -91,6 +91,21 @@ class AnnotationTestCase(TestCase):
         assert note.uri_link() == '<a href="%(uri)s">%(uri)s</a>' % \
             {'uri': note.uri}
 
+    def test_text_preview(self):
+        note = Annotation()
+        # no text
+        assert note.text_preview() == '[no text]'
+        # short text - no abbreviation indication
+        note.text = 'short text'
+        assert note.text_preview() == note.text
+        # long text
+        note.text = '''this is my very long text that should definitely,
+        certainly, absolutely get shortened because it is way too long'''
+        preview = note.text_preview()
+        assert preview != note.text
+        assert note.text.startswith(preview[:-3])
+        assert preview.endswith('...')
+
     def test_create_from_request(self):
         note = Annotation.create_from_request(self.mockrequest)
         assert self.annotation_data['text'] == note.text
