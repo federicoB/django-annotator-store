@@ -1,0 +1,33 @@
+language: python
+
+python:
+  - "2.7"
+  - "3.5"
+
+env:
+  - DJANGO=1.8 PERMISSIONS=true
+  - DJANGO=1.8 PERMISSIONS=false
+  - DJANGO=1.9 PERMISSIONS=true
+  - DJANGO=1.10 PERMISSIONS=true
+  - DJANGO=1.10 PERMISSIONS=false
+  - DJANGO=1.11 PERMISSIONS=true
+  - DJANGO=1.11 PERMISSIONS=false
+
+before_install:
+  - pip install --upgrade pytest
+
+install:
+  - pip install -q Django==$DJANGO
+  - pip install -e .
+  - if [[ "$PERMISSIONS" == "true" ]]; then pip install -e '.[permissions]'; else echo "[SKIPPED] install permissions"; fi
+  # - pip install -e '.[permissions]'
+  - pip install -e '.[test]'
+  - pip install codecov
+  - cp ci/testsettings.py testsettings.py
+  - python -c "import uuid; print('SECRET_KEY = \'%s\'' % uuid.uuid4())" >> testsettings.py
+
+script:
+  - py.test --cov=annotator_store
+
+after_success:
+  - codecov

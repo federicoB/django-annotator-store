@@ -1,0 +1,4 @@
+include LICENSE
+include README.rst
+recursive-include annotator_store/static *
+recursive-include annotator_store/templates *
