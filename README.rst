@@ -131,10 +131,12 @@ Initial setup and installation:
 Unit Testing
 ^^^^^^^^^^^^
 
-Unit tests are run with [py.test](http://doc.pytest.org/) but use
+Unit tests are run with `py.test`_ but use
 Django test classes for convenience and compatibility with django test suites.
 Running the tests requires a minimal settings file for Django required
 configurations.
+
+.. _py.test: http://doc.pytest.org
 
 - Copy sample test settings and add a **SECRET_KEY**::
 
