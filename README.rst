@@ -3,16 +3,16 @@
 Django-Annotator-Store
 ======================
 
-.. image:: https://travis-ci.org/Princeton-CDH/django-annotator-store.svg?branch=feature/extract-annotator-store
+.. image:: https://travis-ci.org/Princeton-CDH/django-annotator-store.svg?branch=master
    :target: https://travis-ci.org/Princeton-CDH/django-annotator-store
    :alt: Build Status
-.. image:: https://codecov.io/gh/Princeton-CDH/django-annotator-store/branch/feature/extract-annotator-store/graph/badge.svg
+.. image:: https://codecov.io/gh/Princeton-CDH/django-annotator-store/branch/master/graph/badge.svg
    :target: https://codecov.io/gh/Princeton-CDH/django-annotator-store
    :alt: Code Coverage
-.. image:: https://landscape.io/github/Princeton-CDH/django-annotator-store/feature/extract-annotator-store/landscape.svg?style=flat
-   :target: https://landscape.io/github/Princeton-CDH/django-annotator-store/feature/extract-annotator-store
+.. image:: https://landscape.io/github/Princeton-CDH/django-annotator-store/master/landscape.svg?style=flat
+   :target: https://landscape.io/github/Princeton-CDH/django-annotator-store/master
    :alt: Code Health
-.. image:: https://requires.io/github/Princeton-CDH/django-annotator-store/requirements.svg?branch=feature%2Fextract-annotator-store
+.. image:: https://requires.io/github/Princeton-CDH/django-annotator-store/requirements.svg?branch=master
      :target: https://requires.io/github/Princeton-CDH/django-annotator-store/requirements/?branch=feature%2Fextract-annotator-store
      :alt: Requirements Status
 
@@ -106,7 +106,7 @@ the base annotation class.
   included when you initialize your annotator.js Annotator object.
   That code is currently available as a plugin in the `Readux codebase`_
 
-.. _permissios plugin: https://github.com/ecds/readux/blob/master/sitemedia/js/annotator/annotator.permissions.js
+.. _permissions plugin: https://github.com/ecds/readux/blob/master/sitemedia/js/annotator/annotator.permissions.js
 .. _Readux codebase: https://github.com/ecds/readux
 
 Development instructions
