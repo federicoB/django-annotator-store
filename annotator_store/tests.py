@@ -6,11 +6,12 @@ except ImportError:
     # python 2.7
     from mock import Mock, patch
 import uuid
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission, AnonymousUser
 from django.contrib.sites.models import Site
+from django.core.exceptions import PermissionDenied
 from django.core.urlresolvers import reverse, resolve
+from django.http import HttpResponse, HttpRequest
 from django.test import TestCase
 from django.test.utils import override_settings
 try:
@@ -21,7 +22,7 @@ import pytest
 import six
 
 from .models import Annotation, ANNOTATION_OBJECT_PERMISSIONS
-from .utils import absolutize_url
+from .utils import absolutize_url, permission_required
 
 if ANNOTATION_OBJECT_PERMISSIONS:
     # annotation group is only defined when permissions are enabled
@@ -416,6 +417,7 @@ class AnnotationViewsTest(TestCase):
 
     def setUp(self):
         # annotation that belongs to testuser
+        self.user = get_user_model().objects.get(username=self.user_credentials['user']['username'])
         self.user_note = Annotation.objects \
             .get(user__username=self.user_credentials['user']['username'])
         # annotation that belongs to superuser
@@ -525,13 +527,23 @@ class AnnotationViewsTest(TestCase):
             'should return 401 Unauthorized on anonymous attempt to create annotation, got %s' \
             % resp.status_code)
 
-        # log in as a regular user
+        # log in as a regular user without add annotation permission
         self.client.login(**self.user_credentials['user'])
         resp = self.client.post(url,
             data=json.dumps(AnnotationTestCase.annotation_data),
             content_type='application/json',
             HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        # logged in but insufficient permissions, should get 403
+        self.assertEqual(403, resp.status_code,
+            'should return 403 Forbidden on attempt to create annotation, got %s' \
+            % resp.status_code)
 
+        # grant user add_annotation permission
+        self.user.user_permissions.add(Permission.objects.get(codename='add_annotation'))
+        resp = self.client.post(url,
+            data=json.dumps(AnnotationTestCase.annotation_data),
+            content_type='application/json',
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest')
         self.assertEqual(303, resp.status_code,
             'should return 303 See Other on succesful annotation creation, got %s' \
             % resp.status_code)
@@ -855,5 +867,53 @@ def test_absolutize_url():
     # site with https:// included
     current_site.domain = 'https://example.org'
     assert absolutize_url(local_path) == 'https://example.org/sub/foo/bar/'
+
+
+class TestPermissionRequired(TestCase):
+    fixtures = ['test_annotation_data.json']
+    username = AnnotationViewsTest.user_credentials['user']['username']
+    super_username = AnnotationViewsTest.user_credentials['superuser']['username']
+
+    def setUp(self):
+        def simple_view(request):
+            "a simple view for testing custom auth decorators"
+            return HttpResponse("Hello, World")
+
+        self.login_url = '/my/login/page'
+        self.decorated_view = permission_required('is_superuser',
+            self.login_url)(simple_view)
+
+        # use mock to simplify generating a request
+        self.request = Mock(spec=HttpRequest)
+        self.request.build_absolute_uri.return_value = 'http://example.com/simple/'
+        self.request.is_ajax.return_value = False
+
+
+    def test_anonymous(self):
+        self.request.user = AnonymousUser()
+
+        # anonymous user, non-ajax request
+        response = self.decorated_view(self.request)
+        assert response.status_code == 302
+        assert response.url.startswith(self.login_url)
+
+        # anonymous ajax request
+        self.request.is_ajax.return_value = True
+        response = self.decorated_view(self.request)
+        assert response.status_code == 401
+
+    def test_logged_in_notallowed(self):
+        # test with non-super user from fixture
+        self.request.user = get_user_model().objects.get(username=self.username)
+
+        with pytest.raises(PermissionDenied):
+            self.decorated_view(self.request)
+
+    def test_allowed(self):
+        # test with superuser from fixture
+        self.request.user = get_user_model().objects.get(username=self.super_username)
+
+        # returns simple view normally
+        assert self.decorated_view(self.request).status_code == 200
 
 

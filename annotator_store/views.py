@@ -1,3 +1,4 @@
+from django.contrib.auth.decorators import login_required, permission_required
 from django.core.exceptions import PermissionDenied
 from django.core.urlresolvers import reverse
 from django.db.models import Q
@@ -5,11 +6,12 @@ from django.http import JsonResponse, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.views.generic import View
-from eulcommon.djangoextras.auth import login_required_with_ajax
+from eulcommon.djangoextras.auth import login_required_with_ajax, \
+    permission_required_with_ajax
 from eulcommon.djangoextras.http.responses import HttpResponseSeeOtherRedirect
 
 from .models import get_annotation_model, ANNOTATION_OBJECT_PERMISSIONS
-from .utils import absolutize_url
+from .utils import absolutize_url, permission_required
 
 
 # get and use configured annotation model
@@ -85,7 +87,7 @@ class Annotations(View):
         # TODO: pagination? look at reference implementation
         return JsonResponse([n.info() for n in notes], safe=False)
 
-    @method_decorator(login_required_with_ajax())
+    @method_decorator(permission_required('annotator_store.add_annotation'))
     def post(self, request):
         'Create a new annotation via AJAX.'
         # for now, only support creation via ajax
