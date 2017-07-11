@@ -3,6 +3,14 @@
 CHANGELOG
 =========
 
+Release 0.6
+-----------
+
+* Creating new annotations via annotator API now requires the user
+  to have the `annotator_store.add_annotation` permission.
+  (Previously any logged in user could create annotations.)
+
+
 Release 0.5
 -----------
 
