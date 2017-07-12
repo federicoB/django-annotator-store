@@ -6,8 +6,10 @@ except ImportError:
     # python 2.7
     from mock import Mock, patch
 import uuid
+from django.contrib.admin.models import LogEntry, ADDITION, CHANGE, DELETION
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission, AnonymousUser
+from django.contrib.contenttypes.models import ContentType
 from django.contrib.sites.models import Site
 from django.core.exceptions import PermissionDenied
 from django.core.urlresolvers import reverse, resolve
@@ -560,6 +562,12 @@ class AnnotationViewsTest(TestCase):
         note = Annotation.objects.get(id=view.kwargs['id'])
         self.assertEqual(AnnotationTestCase.annotation_data['text'],
             note.text, 'annotation content should be set from request data')
+        # check that log entry was created
+        log = LogEntry.objects.get(object_id=note.pk)
+        assert log.user == self.user
+        assert log.action_flag == ADDITION
+        assert log.change_message == 'Created via annotator API'
+        assert log.content_type == ContentType.objects.get_for_model(note)
 
         # non ajax request gets a bad request response
         resp = self.client.post(url,
@@ -666,6 +674,13 @@ class AnnotationViewsTest(TestCase):
         self.assertEqual(AnnotationTestCase.annotation_data['ranges'],
             n1.extra_data['ranges'])
 
+        # check that log entry was created
+        log = LogEntry.objects.get(object_id=n1.pk)
+        assert log.user == self.user
+        assert log.action_flag == CHANGE
+        assert log.change_message == 'Updated via annotator API'
+        assert log.content_type == ContentType.objects.get_for_model(n1)
+
         # if per-object permissions are enabled, by default user ONLY has
         # update access to their own annotations; when testing with
         # normal django permissions, remove blanket change permissions
@@ -738,6 +753,13 @@ class AnnotationViewsTest(TestCase):
             resp.status_code)
         self.assertEqual(six.b(''), resp.content,
             'deletion response should have no content')
+
+        # check that log entry was created
+        log = LogEntry.objects.get(object_id=self.user_note.id)
+        assert log.user == self.user
+        assert log.action_flag == DELETION
+        assert log.change_message == 'Deleted via annotator API'
+        assert log.content_type == ContentType.objects.get_for_model(self.user_note)
 
         # attempt to delete other user's note
 
