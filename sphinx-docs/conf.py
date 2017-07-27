@@ -122,7 +122,7 @@ html_theme = 'alabaster'
 html_theme = 'alabaster'
 html_style = 'style.css'
 html_theme_options = {
-    'logo': 'readux.png',  # must be in _static dir
+    # 'logo': 'readux.png',  # must be in _static dir
     'github_user': 'Princeton-CDH',
     'github_repo': 'django-annotator-store',
     'travis_button': True,
