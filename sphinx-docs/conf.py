@@ -17,11 +17,12 @@ import os
 
 # before importing, add add project directory to the path
 sys.path.append("..")
+sys.path.append(".")   # for docsettings, included for readthedocs
 
-import django
 # generate documentation with permissions enabled
 os.environ['PERMISSIONS'] = 'true'
-os.environ['DJANGO_SETTINGS_MODULE'] = 'testsettings'
+import django
+os.environ['DJANGO_SETTINGS_MODULE'] = 'docsettings'
 django.setup()
 
 import annotator_store
