@@ -36,12 +36,12 @@ This software is distributed under the Apache 2.0 License.
 Installation
 ------------
 
-Use pip to install from GitHub::
+Use pip to install::
 
-    pip install git+https://github.com/Princeton-CDH/django-annotator-store.git#egg=annotator_store
+    pip install
 
-Use branch or tag name, e.g. ``@develop`` or ``@1.0``, to install a specific
-tagged release or branch::
+You can also install from GitHub.  Use branch or tag name, e.g.
+``@develop`` or ``@1.0``, to install a specific tagged release or branch::
 
     pip install git+https://github.com/Princeton-CDH/django-annotator-store.git@develop#egg=annotator_store
 
