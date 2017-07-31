@@ -19,6 +19,8 @@ import os
 sys.path.append("..")
 
 import django
+# generate documentation with permissions enabled
+os.environ['PERMISSIONS'] = 'true'
 os.environ['DJANGO_SETTINGS_MODULE'] = 'testsettings'
 django.setup()
 
@@ -43,6 +45,7 @@ extensions = [
     'sphinx.ext.coverage',
     'sphinx.ext.viewcode',
     'sphinx.ext.graphviz',
+    'sphinx.ext.coverage',
 ]
 
 graphviz_output_format = 'svg'

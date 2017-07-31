@@ -3,6 +3,8 @@
 Django-Annotator-Store
 ======================
 
+.. sphinx-start-marker-do-not-remove
+
 .. image:: https://travis-ci.org/Princeton-CDH/django-annotator-store.svg?branch=master
    :target: https://travis-ci.org/Princeton-CDH/django-annotator-store
    :alt: Build Status
