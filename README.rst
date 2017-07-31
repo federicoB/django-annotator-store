@@ -15,8 +15,11 @@ Django-Annotator-Store
    :target: https://landscape.io/github/Princeton-CDH/django-annotator-store/master
    :alt: Code Health
 .. image:: https://requires.io/github/Princeton-CDH/django-annotator-store/requirements.svg?branch=master
-     :target: https://requires.io/github/Princeton-CDH/django-annotator-store/requirements/?branch=master
-     :alt: Requirements Status
+   :target: https://requires.io/github/Princeton-CDH/django-annotator-store/requirements/?branch=master
+   :alt: Requirements Status
+.. image:: https://readthedocs.org/projects/django-annotator-store/badge/?version=stable
+   :target: http://django-annotator-store.readthedocs.io/en/latest/?badge=stable
+   :alt: Documentation Status
 
 **annotator_store** is a `Django <https://www.djangoproject.com/>`_
 application meant for use within a Django project as an
