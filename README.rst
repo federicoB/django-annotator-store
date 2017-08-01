@@ -5,20 +5,20 @@ Django-Annotator-Store
 
 .. sphinx-start-marker-do-not-remove
 
-.. image:: https://travis-ci.org/Princeton-CDH/django-annotator-store.svg?branch=master
+.. image:: https://travis-ci.org/Princeton-CDH/django-annotator-store.svg?branch=develop
    :target: https://travis-ci.org/Princeton-CDH/django-annotator-store
    :alt: Build Status
-.. image:: https://codecov.io/gh/Princeton-CDH/django-annotator-store/branch/master/graph/badge.svg
+.. image:: https://codecov.io/gh/Princeton-CDH/django-annotator-store/branch/develop/graph/badge.svg
    :target: https://codecov.io/gh/Princeton-CDH/django-annotator-store
    :alt: Code Coverage
-.. image:: https://landscape.io/github/Princeton-CDH/django-annotator-store/master/landscape.svg?style=flat
-   :target: https://landscape.io/github/Princeton-CDH/django-annotator-store/master
+.. image:: https://landscape.io/github/Princeton-CDH/django-annotator-store/develop/landscape.svg?style=flat
+   :target: https://landscape.io/github/Princeton-CDH/django-annotator-store/develop
    :alt: Code Health
-.. image:: https://requires.io/github/Princeton-CDH/django-annotator-store/requirements.svg?branch=master
-   :target: https://requires.io/github/Princeton-CDH/django-annotator-store/requirements/?branch=master
+.. image:: https://requires.io/github/Princeton-CDH/django-annotator-store/requirements.svg?branch=develop
+   :target: https://requires.io/github/Princeton-CDH/django-annotator-store/requirements/?branch=develop
    :alt: Requirements Status
-.. image:: https://readthedocs.org/projects/django-annotator-store/badge/?version=stable
-   :target: http://django-annotator-store.readthedocs.io/en/latest/?badge=stable
+.. image:: https://readthedocs.org/projects/django-annotator-store/badge/?version=latest
+   :target: http://django-annotator-store.readthedocs.io/en/latest/?badge=latest
    :alt: Documentation Status
 
 **annotator_store** is a `Django <https://www.djangoproject.com/>`_
