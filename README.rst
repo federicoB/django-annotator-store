@@ -41,7 +41,7 @@ Installation
 
 Use pip to install::
 
-    pip install
+    pip install annotator_store
 
 You can also install from GitHub.  Use branch or tag name, e.g.
 ``@develop`` or ``@1.0``, to install a specific tagged release or branch::
