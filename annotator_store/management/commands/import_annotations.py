@@ -33,9 +33,16 @@ class Command(BaseCommand):
 
         # required fields that should always be present
         # (not normally set by user)
+        # set identifier
+        note.id = data['id']
+        # save the creation date to set after the object is created,
+        # as a work-around for auto-now-add
+        created = data['created']
+
+        # delete dates and id so they do not get set in extra data
         for field in ['updated', 'created', 'id']:
-            setattr(note, field, data[field])
             del data[field]
+
         # user is special: annotation data only includes username,
         # but we need a user object
         # NOTE: this could result in making one person's annotations
@@ -57,4 +64,8 @@ class Command(BaseCommand):
         if data:
             note.extra_data.update(data)
 
+        note.save()
+
+        # restore original creation date after django sets it via auto_now_add
+        note.created = created
         note.save()

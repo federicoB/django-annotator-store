@@ -17,9 +17,12 @@ import os
 
 # before importing, add add project directory to the path
 sys.path.append("..")
+sys.path.append(".")   # for docsettings, included for readthedocs
 
+# generate documentation with permissions enabled
+os.environ['PERMISSIONS'] = 'true'
 import django
-os.environ['DJANGO_SETTINGS_MODULE'] = 'testsettings'
+os.environ['DJANGO_SETTINGS_MODULE'] = 'docsettings'
 django.setup()
 
 import annotator_store
@@ -43,6 +46,7 @@ extensions = [
     'sphinx.ext.coverage',
     'sphinx.ext.viewcode',
     'sphinx.ext.graphviz',
+    'sphinx.ext.coverage',
 ]
 
 graphviz_output_format = 'svg'
@@ -122,7 +126,7 @@ html_theme = 'alabaster'
 html_theme = 'alabaster'
 html_style = 'style.css'
 html_theme_options = {
-    'logo': 'readux.png',  # must be in _static dir
+    # 'logo': 'readux.png',  # must be in _static dir
     'github_user': 'Princeton-CDH',
     'github_repo': 'django-annotator-store',
     'travis_button': True,

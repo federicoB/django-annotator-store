@@ -3,18 +3,23 @@
 Django-Annotator-Store
 ======================
 
-.. image:: https://travis-ci.org/Princeton-CDH/django-annotator-store.svg?branch=develop
+.. sphinx-start-marker-do-not-remove
+
+.. image:: https://travis-ci.org/Princeton-CDH/django-annotator-store.svg?branch=master
    :target: https://travis-ci.org/Princeton-CDH/django-annotator-store
    :alt: Build Status
-.. image:: https://codecov.io/gh/Princeton-CDH/django-annotator-store/branch/develop/graph/badge.svg
+.. image:: https://codecov.io/gh/Princeton-CDH/django-annotator-store/branch/master/graph/badge.svg
    :target: https://codecov.io/gh/Princeton-CDH/django-annotator-store
    :alt: Code Coverage
-.. image:: https://landscape.io/github/Princeton-CDH/django-annotator-store/develop/landscape.svg?style=flat
-   :target: https://landscape.io/github/Princeton-CDH/django-annotator-store/develop
+.. image:: https://landscape.io/github/Princeton-CDH/django-annotator-store/master/landscape.svg?style=flat
+   :target: https://landscape.io/github/Princeton-CDH/django-annotator-store/master
    :alt: Code Health
-.. image:: https://requires.io/github/Princeton-CDH/django-annotator-store/requirements.svg?branch=develop
-     :target: https://requires.io/github/Princeton-CDH/django-annotator-store/requirements/?branch=develop
-     :alt: Requirements Status
+.. image:: https://requires.io/github/Princeton-CDH/django-annotator-store/requirements.svg?branch=master
+   :target: https://requires.io/github/Princeton-CDH/django-annotator-store/requirements/?branch=master
+   :alt: Requirements Status
+.. image:: https://readthedocs.org/projects/django-annotator-store/badge/?version=stable
+   :target: http://django-annotator-store.readthedocs.io/en/latest/?badge=stable
+   :alt: Documentation Status
 
 **annotator_store** is a `Django <https://www.djangoproject.com/>`_
 application meant for use within a Django project as an
@@ -34,12 +39,12 @@ This software is distributed under the Apache 2.0 License.
 Installation
 ------------
 
-Use pip to install from GitHub::
+Use pip to install::
 
-    pip install git+https://github.com/Princeton-CDH/django-annotator-store.git#egg=annotator_store
+    pip install
 
-Use branch or tag name, e.g. ``@develop`` or ``@1.0``, to install a specific
-tagged release or branch::
+You can also install from GitHub.  Use branch or tag name, e.g.
+``@develop`` or ``@1.0``, to install a specific tagged release or branch::
 
     pip install git+https://github.com/Princeton-CDH/django-annotator-store.git@develop#egg=annotator_store
 

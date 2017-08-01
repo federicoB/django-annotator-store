@@ -1,4 +1,5 @@
 import json
+import os
 try:
     # python 3
     from unittest.mock import Mock, patch
@@ -6,11 +7,14 @@ except ImportError:
     # python 2.7
     from mock import Mock, patch
 import uuid
+
 from django.contrib.admin.models import LogEntry, ADDITION, CHANGE, DELETION
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission, AnonymousUser
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.sites.models import Site
+from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.core.exceptions import PermissionDenied
 from django.core.urlresolvers import reverse, resolve
 from django.http import HttpResponse, HttpRequest
@@ -30,6 +34,8 @@ if ANNOTATION_OBJECT_PERMISSIONS:
     # annotation group is only defined when permissions are enabled
     from .models import AnnotationGroup
 
+
+FIXTURE_DIR = os.path.join(os.path.dirname(__file__), 'fixtures')
 
 # NOTE: per-object permissions are enabled based on
 # ANNOTATION_OBJECT_PERMISSIONS, which can be set via PERMISSIONS
@@ -937,5 +943,40 @@ class TestPermissionRequired(TestCase):
 
         # returns simple view normally
         assert self.decorated_view(self.request).status_code == 200
+
+
+class TestImportAnnotations(TestCase):
+    # test manage command
+    annotation_data = os.path.join(FIXTURE_DIR, 'annotator_api_data.json')
+
+    def test_command(self):
+        # will error when matching user does not exist
+        with pytest.raises(CommandError) as cmderr:
+            call_command('import_annotations', self.annotation_data)
+
+        assert 'Cannot import annotations for user jdoe (does not exist)' \
+            in str(cmderr)
+
+        # load annotation data as json to compare
+        with open(self.annotation_data) as jsonfile:
+            import_data = json.loads(jsonfile.read())
+        import_note = import_data['rows'][0]
+        # create the user referenced in the annotation
+        get_user_model().objects.create(username='jdoe')
+        call_command('import_annotations', self.annotation_data)
+        # retrieve & inspect the imported annotation
+        note = Annotation.objects.get()
+        # should preserve id and creation time
+        assert str(note.id) == import_note['id']
+        assert note.created.isoformat() == import_note['created']
+        # other fields should be copied over also
+        assert note.user.username == import_note['user']
+        assert note.text == import_note['text']
+        assert note.quote == import_note['quote']
+        assert note.uri == import_note['uri']
+        assert 'tags' in note.extra_data
+        assert note.extra_data['tags'] == ['foo', 'bar']
+
+
 
 

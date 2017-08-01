@@ -43,7 +43,7 @@ class AnnotationQuerySet(models.QuerySet):
 
         .. Note::
             Due to the use of :meth:`guardian.shortcuts.get_objects_for_user`,
-            it is recommended to use this method must be used first; it
+            it is recommended to use this method first; it
             does combine the existing queryset query, but it does not
             chain as querysets normally do.
 

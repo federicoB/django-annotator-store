@@ -1,0 +1,17 @@
+{
+    "total": 12,
+    "rows": [
+        {
+            "id": "04b8077c-67dc-41d4-9e7c-8f7fb0715134",
+            "annotator_schema_version": "v1.0",
+            "created": "2017-07-06T19:39:31+00:00",
+            "updated": "2017-07-06T19:39:31+00:00",
+            "text": "some imaginary text here",
+            "quote": "what a brilliant comment!",
+            "uri": "https://plum.princeton.edu/concern/scanned_resources/pks65ks431/manifest/canvas/prf561k752",
+            "user": "jdoe",
+            "ranges": [],
+            "tags": ["foo", "bar"]
+        }
+    ]
+}
