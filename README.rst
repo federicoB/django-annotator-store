@@ -17,8 +17,8 @@ Django-Annotator-Store
 .. image:: https://requires.io/github/Princeton-CDH/django-annotator-store/requirements.svg?branch=master
    :target: https://requires.io/github/Princeton-CDH/django-annotator-store/requirements/?branch=master
    :alt: Requirements Status
-.. image:: https://readthedocs.org/projects/django-annotator-store/badge/?version=stable
-   :target: http://django-annotator-store.readthedocs.io/en/latest/?badge=stable
+.. image:: https://readthedocs.org/projects/django-annotator-store/badge/?version=latest
+   :target: http://django-annotator-store.readthedocs.io/en/latest/
    :alt: Documentation Status
 
 **annotator_store** is a `Django <https://www.djangoproject.com/>`_
