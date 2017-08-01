@@ -1,3 +1,6 @@
+from django.contrib.admin.models import LogEntry, ADDITION, CHANGE, DELETION
+from django.contrib.auth.decorators import login_required, permission_required
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied
 from django.core.urlresolvers import reverse
 from django.db.models import Q
@@ -5,11 +8,13 @@ from django.http import JsonResponse, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.views.generic import View
-from eulcommon.djangoextras.auth import login_required_with_ajax
+from eulcommon.djangoextras.auth import login_required_with_ajax, \
+    permission_required_with_ajax
 from eulcommon.djangoextras.http.responses import HttpResponseSeeOtherRedirect
+import six
 
 from .models import get_annotation_model, ANNOTATION_OBJECT_PERMISSIONS
-from .utils import absolutize_url
+from .utils import absolutize_url, permission_required
 
 
 # get and use configured annotation model
@@ -85,13 +90,23 @@ class Annotations(View):
         # TODO: pagination? look at reference implementation
         return JsonResponse([n.info() for n in notes], safe=False)
 
-    @method_decorator(login_required_with_ajax())
+    @method_decorator(permission_required('annotator_store.add_annotation'))
     def post(self, request):
         'Create a new annotation via AJAX.'
         # for now, only support creation via ajax
         if request.is_ajax():
             note = Annotation.create_from_request(request)
             note.save()
+
+            # create log entry for creation of the annotation
+            LogEntry.objects.log_action(
+                user_id=request.user.id,
+                content_type_id=ContentType.objects.get_for_model(note).pk,
+                object_id=note.pk,
+                object_repr=str(note),
+                change_message='Created via annotator API',
+                action_flag=ADDITION)
+
             # annotator store documentation says to return 303
             # not sure why this isn't a 201 Created...
             return HttpResponseSeeOtherRedirect(note.get_absolute_url())
@@ -137,6 +152,16 @@ class AnnotationView(View):
             # NOTE: if user has update permission but not admin permission,
             # any changes to annotation permissions will be ignored
             note.update_from_request(request)
+
+            # create log entry for modification of the annotation
+            LogEntry.objects.log_action(
+                user_id=request.user.id,
+                content_type_id=ContentType.objects.get_for_model(note).pk,
+                object_id=note.pk,
+                object_repr=str(note),
+                change_message='Updated via annotator API',
+                action_flag=CHANGE)
+
             return HttpResponseSeeOtherRedirect(note.get_absolute_url())
         else:
             return HttpResponseBadRequest(non_ajax_error_msg)
@@ -149,7 +174,17 @@ class AnnotationView(View):
         if not note.user_can_delete(self.request.user):
             raise PermissionDenied()
 
+        # log that the annotation is being deleted
+        LogEntry.objects.log_action(
+            user_id=request.user.id,
+            content_type_id=ContentType.objects.get_for_model(note).pk,
+            object_id=note.pk,
+            object_repr=str(note),
+            change_message='Deleted via annotator API',
+            action_flag=DELETION)
+        # delete the note
         note.delete()
+
         response = HttpResponse('')
         # return 204 no content, according to annotator store api docs
         response.status_code = 204

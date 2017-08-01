@@ -3,6 +3,15 @@
 CHANGELOG
 =========
 
+Release 0.6
+-----------
+
+* Creating new annotations via annotator API now requires the user
+  to have the `annotator_store.add_annotation` permission.
+  (Previously any logged in user could create annotations.)
+* Any annotation edits (create, update, delete) made via annotator API
+  now generate Django admin log entries.
+
 Release 0.5
 -----------
 

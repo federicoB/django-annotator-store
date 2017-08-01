@@ -33,6 +33,9 @@ MIDDLEWARE_CLASSES = [
 
 USE_TZ = True
 
+# USE_I18N = False
+# LANGUAGE_CODE = 'en'
+
 SITE_ID = 1
 
 ROOT_URLCONF = 'annotator_store.test_urls'
@@ -50,4 +53,5 @@ if ANNOTATION_OBJECT_PERMISSIONS:
 else:
     print('Testing with normal django permissions (no django-guardian)')
 
-# SECRET_KEY = ''
+SECRET_KEY = 'GsMxCj)uB&U9FT#+FqKh[_~%Y8kRzYr1e+LKIwMOLlzw!q.asU'
+

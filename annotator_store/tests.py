@@ -1,4 +1,5 @@
 import json
+import os
 try:
     # python 3
     from unittest.mock import Mock, patch
@@ -6,11 +7,17 @@ except ImportError:
     # python 2.7
     from mock import Mock, patch
 import uuid
-from django.conf import settings
+
+from django.contrib.admin.models import LogEntry, ADDITION, CHANGE, DELETION
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission, AnonymousUser
+from django.contrib.contenttypes.models import ContentType
 from django.contrib.sites.models import Site
+from django.core.management import call_command
+from django.core.management.base import CommandError
+from django.core.exceptions import PermissionDenied
 from django.core.urlresolvers import reverse, resolve
+from django.http import HttpResponse, HttpRequest
 from django.test import TestCase
 from django.test.utils import override_settings
 try:
@@ -21,12 +28,14 @@ import pytest
 import six
 
 from .models import Annotation, ANNOTATION_OBJECT_PERMISSIONS
-from .utils import absolutize_url
+from .utils import absolutize_url, permission_required
 
 if ANNOTATION_OBJECT_PERMISSIONS:
     # annotation group is only defined when permissions are enabled
     from .models import AnnotationGroup
 
+
+FIXTURE_DIR = os.path.join(os.path.dirname(__file__), 'fixtures')
 
 # NOTE: per-object permissions are enabled based on
 # ANNOTATION_OBJECT_PERMISSIONS, which can be set via PERMISSIONS
@@ -416,6 +425,7 @@ class AnnotationViewsTest(TestCase):
 
     def setUp(self):
         # annotation that belongs to testuser
+        self.user = get_user_model().objects.get(username=self.user_credentials['user']['username'])
         self.user_note = Annotation.objects \
             .get(user__username=self.user_credentials['user']['username'])
         # annotation that belongs to superuser
@@ -525,13 +535,23 @@ class AnnotationViewsTest(TestCase):
             'should return 401 Unauthorized on anonymous attempt to create annotation, got %s' \
             % resp.status_code)
 
-        # log in as a regular user
+        # log in as a regular user without add annotation permission
         self.client.login(**self.user_credentials['user'])
         resp = self.client.post(url,
             data=json.dumps(AnnotationTestCase.annotation_data),
             content_type='application/json',
             HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        # logged in but insufficient permissions, should get 403
+        self.assertEqual(403, resp.status_code,
+            'should return 403 Forbidden on attempt to create annotation, got %s' \
+            % resp.status_code)
 
+        # grant user add_annotation permission
+        self.user.user_permissions.add(Permission.objects.get(codename='add_annotation'))
+        resp = self.client.post(url,
+            data=json.dumps(AnnotationTestCase.annotation_data),
+            content_type='application/json',
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest')
         self.assertEqual(303, resp.status_code,
             'should return 303 See Other on succesful annotation creation, got %s' \
             % resp.status_code)
@@ -548,6 +568,12 @@ class AnnotationViewsTest(TestCase):
         note = Annotation.objects.get(id=view.kwargs['id'])
         self.assertEqual(AnnotationTestCase.annotation_data['text'],
             note.text, 'annotation content should be set from request data')
+        # check that log entry was created
+        log = LogEntry.objects.get(object_id=note.pk)
+        assert log.user == self.user
+        assert log.action_flag == ADDITION
+        assert log.change_message == 'Created via annotator API'
+        assert log.content_type == ContentType.objects.get_for_model(note)
 
         # non ajax request gets a bad request response
         resp = self.client.post(url,
@@ -654,6 +680,13 @@ class AnnotationViewsTest(TestCase):
         self.assertEqual(AnnotationTestCase.annotation_data['ranges'],
             n1.extra_data['ranges'])
 
+        # check that log entry was created
+        log = LogEntry.objects.get(object_id=n1.pk)
+        assert log.user == self.user
+        assert log.action_flag == CHANGE
+        assert log.change_message == 'Updated via annotator API'
+        assert log.content_type == ContentType.objects.get_for_model(n1)
+
         # if per-object permissions are enabled, by default user ONLY has
         # update access to their own annotations; when testing with
         # normal django permissions, remove blanket change permissions
@@ -726,6 +759,13 @@ class AnnotationViewsTest(TestCase):
             resp.status_code)
         self.assertEqual(six.b(''), resp.content,
             'deletion response should have no content')
+
+        # check that log entry was created
+        log = LogEntry.objects.get(object_id=self.user_note.id)
+        assert log.user == self.user
+        assert log.action_flag == DELETION
+        assert log.change_message == 'Deleted via annotator API'
+        assert log.content_type == ContentType.objects.get_for_model(self.user_note)
 
         # attempt to delete other user's note
 
@@ -855,5 +895,88 @@ def test_absolutize_url():
     # site with https:// included
     current_site.domain = 'https://example.org'
     assert absolutize_url(local_path) == 'https://example.org/sub/foo/bar/'
+
+
+class TestPermissionRequired(TestCase):
+    fixtures = ['test_annotation_data.json']
+    username = AnnotationViewsTest.user_credentials['user']['username']
+    super_username = AnnotationViewsTest.user_credentials['superuser']['username']
+
+    def setUp(self):
+        def simple_view(request):
+            "a simple view for testing custom auth decorators"
+            return HttpResponse("Hello, World")
+
+        self.login_url = '/my/login/page'
+        self.decorated_view = permission_required('is_superuser',
+            self.login_url)(simple_view)
+
+        # use mock to simplify generating a request
+        self.request = Mock(spec=HttpRequest)
+        self.request.build_absolute_uri.return_value = 'http://example.com/simple/'
+        self.request.is_ajax.return_value = False
+
+
+    def test_anonymous(self):
+        self.request.user = AnonymousUser()
+
+        # anonymous user, non-ajax request
+        response = self.decorated_view(self.request)
+        assert response.status_code == 302
+        assert response.url.startswith(self.login_url)
+
+        # anonymous ajax request
+        self.request.is_ajax.return_value = True
+        response = self.decorated_view(self.request)
+        assert response.status_code == 401
+
+    def test_logged_in_notallowed(self):
+        # test with non-super user from fixture
+        self.request.user = get_user_model().objects.get(username=self.username)
+
+        with pytest.raises(PermissionDenied):
+            self.decorated_view(self.request)
+
+    def test_allowed(self):
+        # test with superuser from fixture
+        self.request.user = get_user_model().objects.get(username=self.super_username)
+
+        # returns simple view normally
+        assert self.decorated_view(self.request).status_code == 200
+
+
+class TestImportAnnotations(TestCase):
+    # test manage command
+    annotation_data = os.path.join(FIXTURE_DIR, 'annotator_api_data.json')
+
+    def test_command(self):
+        # will error when matching user does not exist
+        with pytest.raises(CommandError) as cmderr:
+            call_command('import_annotations', self.annotation_data)
+
+        assert 'Cannot import annotations for user jdoe (does not exist)' \
+            in str(cmderr)
+
+        # load annotation data as json to compare
+        with open(self.annotation_data) as jsonfile:
+            import_data = json.loads(jsonfile.read())
+        import_note = import_data['rows'][0]
+        # create the user referenced in the annotation
+        get_user_model().objects.create(username='jdoe')
+        call_command('import_annotations', self.annotation_data)
+        # retrieve & inspect the imported annotation
+        note = Annotation.objects.get()
+        # should preserve id and creation time
+        assert str(note.id) == import_note['id']
+        assert note.created.isoformat() == import_note['created']
+        # other fields should be copied over also
+        assert note.user.username == import_note['user']
+        assert note.text == import_note['text']
+        assert note.quote == import_note['quote']
+        assert note.uri == import_note['uri']
+        assert 'tags' in note.extra_data
+        assert note.extra_data['tags'] == ['foo', 'bar']
+
+
 
 

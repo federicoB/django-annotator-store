@@ -3,6 +3,8 @@
 Django-Annotator-Store
 ======================
 
+.. sphinx-start-marker-do-not-remove
+
 .. image:: https://travis-ci.org/Princeton-CDH/django-annotator-store.svg?branch=master
    :target: https://travis-ci.org/Princeton-CDH/django-annotator-store
    :alt: Build Status
@@ -13,8 +15,11 @@ Django-Annotator-Store
    :target: https://landscape.io/github/Princeton-CDH/django-annotator-store/master
    :alt: Code Health
 .. image:: https://requires.io/github/Princeton-CDH/django-annotator-store/requirements.svg?branch=master
-     :target: https://requires.io/github/Princeton-CDH/django-annotator-store/requirements/?branch=feature%2Fextract-annotator-store
-     :alt: Requirements Status
+   :target: https://requires.io/github/Princeton-CDH/django-annotator-store/requirements/?branch=master
+   :alt: Requirements Status
+.. image:: https://readthedocs.org/projects/django-annotator-store/badge/?version=stable
+   :target: http://django-annotator-store.readthedocs.io/en/latest/?badge=stable
+   :alt: Documentation Status
 
 **annotator_store** is a `Django <https://www.djangoproject.com/>`_
 application meant for use within a Django project as an
@@ -34,12 +39,12 @@ This software is distributed under the Apache 2.0 License.
 Installation
 ------------
 
-Use pip to install from GitHub::
+Use pip to install::
 
-    pip install git+https://github.com/Princeton-CDH/django-annotator-store.git#egg=annotator_store
+    pip install
 
-Use branch or tag name, e.g. ``@develop`` or ``@1.0``, to install a specific
-tagged release or branch::
+You can also install from GitHub.  Use branch or tag name, e.g.
+``@develop`` or ``@1.0``, to install a specific tagged release or branch::
 
     pip install git+https://github.com/Princeton-CDH/django-annotator-store.git@develop#egg=annotator_store
 
@@ -53,6 +58,7 @@ required components are enabled::
     INSTALLED_APPS = (
         ...
       'django.contrib.auth',
+      'django.contrib.admin',
       'django.contrib.contenttypes',
       'django.contrib.sessions',
       'django.contrib.sites',
