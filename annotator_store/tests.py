@@ -20,9 +20,10 @@ from django.core.urlresolvers import reverse, resolve
 from django.http import HttpResponse, HttpRequest
 from django.test import TestCase
 from django.test.utils import override_settings
-try:
+from .models import ANNOTATION_OBJECT_PERMISSIONS, guardian
+if ANNOTATION_OBJECT_PERMISSIONS and guardian:
     from guardian.shortcuts import remove_perm
-except ImportError:
+else:
     remove_perm = None
 import pytest
 import six

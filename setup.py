@@ -24,7 +24,7 @@ setup(
     long_description=README,
     url='https://github.com/Princeton-CDH/django-annotator-store',
     install_requires=[
-        'django>1.8',
+        'django>=1.8',
         'pytz',
         'jsonfield',
         'eulcommon',
