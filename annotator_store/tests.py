@@ -10,7 +10,7 @@ import uuid
 
 from django.contrib.admin.models import LogEntry, ADDITION, CHANGE, DELETION
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Permission, AnonymousUser
+from django.contrib.auth.models import Permission, AnonymousUser, Group
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.sites.models import Site
 from django.core.management import call_command
@@ -21,7 +21,7 @@ from django.http import HttpResponse, HttpRequest
 from django.test import TestCase
 from .models import Annotation, ANNOTATION_OBJECT_PERMISSIONS, guardian
 if ANNOTATION_OBJECT_PERMISSIONS and guardian:
-    from guardian.shortcuts import remove_perm
+    from guardian.shortcuts import get_perms
 else:
     remove_perm = None
 import pytest
@@ -47,11 +47,12 @@ class AnnotationTestCase(TestCase):
 
     # test create annotation request data based on annotatorjs documentation
     # http://docs.annotatorjs.org/en/v1.2.x/annotation-format.html
+    # TODO remove internal fields
     annotation_data = {
         "id": "39fc339cf058bd22176771b3e3187329",
         "annotator_schema_version": "v1.0",
-        "created": "2011-05-24T18:52:08.036814",
-        "updated": "2011-05-26T12:17:05.012544",
+        #"created": "2011-05-24T18:52:08.036814",
+        #"updated": "2011-05-26T12:17:05.012544",
         "text": "A note I wrote",
         "quote": "the text that was annotated",
         "uri": "http://example.com",
@@ -150,7 +151,7 @@ class AnnotationTestCase(TestCase):
         note.save()  # save so created/updated will get set
         info = note.info()
         fields = ['id', 'annotator_schema_version', 'created', 'updated',
-            'text', 'quote', 'uri', 'user', 'ranges', 'permissions']
+            'text', 'quote', 'uri', 'user', 'ranges']
         # test that expected fields are present
         for f in fields:
             self.assert_(f in info)
@@ -218,13 +219,8 @@ class AnnotationTestCase(TestCase):
         with patch.object(Annotation, 'handle_extra_data', new=mock_handle_extra_data):
             # create a new annotation from request
             note = Annotation.create_from_request(self.mockrequest)
+            note.save()
             # check that handle_extra_data is called on creation
-            assert note.quote.endswith('mischief managed!')
-            assert note.extra_data == {'foo': 'bar'}
-
-            # update existing annotation form request
-            note.update_from_request(self.mockrequest)
-            # check that handle_extra_data is called on update
             assert note.quote.endswith('mischief managed!')
             assert note.extra_data == {'foo': 'bar'}
 
@@ -251,11 +247,19 @@ class AnnotationPermissionsTestCase(TestCase):
         testuser = get_user_model().objects.get(username='testuser')
         testadmin = get_user_model().objects.get(username='testsuper')
 
-        Annotation.objects.create(user=testuser, text='foo')
-        Annotation.objects.create(user=testuser, text='bar')
-        Annotation.objects.create(user=testuser, text='baz')
-        Annotation.objects.create(user=testadmin, text='qux')
+        Annotation.objects.create(user=testuser, text='foo', extra_data={'permissions': {}})
+        Annotation.objects.create(user=testuser, text='bar', extra_data={'permissions': {}})
+        Annotation.objects.create(user=testuser, text='baz', extra_data={'permissions': {}})
+        super_user_note = Annotation(user=testadmin, text='qux')
+        super_user_note.save()
+        super_user_note.db_permissions({
+                'read': [testadmin.username],
+                'update': [testadmin.username],
+                'delete': [testadmin.username],
+                'admin': [testadmin.username]
+            })
 
+        # TODO objects.create does not call handle_extra because there is not extra data
         assert Annotation.objects.visible_to(testuser).count() == 3
         assert Annotation.objects.visible_to(testadmin).count() == 4
 
@@ -271,6 +275,12 @@ class AnnotationPermissionsTestCase(TestCase):
 
         # add mock method db_permission to note object
         with patch.object(note, 'db_permissions') as mock_db_perms:
+            # testuser does not have admin on this annotation;
+            # PermissionDenied should be raised
+            with pytest.raises(PermissionDenied):
+                note.update_from_request(self.mockrequest)
+            # give user admin permission and update again
+            note.assign_permission('admin_annotation', user)
             note.update_from_request(self.mockrequest)
             # check that values are updated
             assert self.annotation_data['text'] == note.text
@@ -279,6 +289,10 @@ class AnnotationPermissionsTestCase(TestCase):
             assert 'ranges' in note.extra_data
             assert self.annotation_data['ranges'][0]['start'] == \
                 note.extra_data['ranges'][0]['start']
+            assert 'permissions' in note.extra_data
+            note.save()
+            # db_permission method now should have been called
+            mock_db_perms.assert_called_with(self.annotation_data['permissions'])
             assert 'permissions' not in note.extra_data
             # existing extra data should no longer present
             assert'sample data' not in note.extra_data
@@ -289,16 +303,7 @@ class AnnotationPermissionsTestCase(TestCase):
             for field in Annotation.internal_fields:
                 assert field not in note.extra_data
 
-            # testuser does not have admin on this annotation;
-            # db_permission method should not be called
-            # permissions should not be updated
-            mock_db_perms.assert_not_called()
 
-            # give user admin permission and update again
-            note.assign_permission('admin_annotation', user)
-            note.update_from_request(self.mockrequest)
-            # db_permission method now should have been called
-            mock_db_perms.assert_called_with(self.annotation_data['permissions'])
 
     def test_user_permissions(self):
         """test annotation user/owner automatically gets permissions"""
@@ -309,24 +314,16 @@ class AnnotationPermissionsTestCase(TestCase):
         note.user = user
         note.save()
 
-        user_perms = note.user_permissions()
-        assert user_perms.count() == 4
-        assert user_perms.filter(user=user,
-                                permission__codename='view_annotation') \
-                          .exists()
-        assert user_perms.filter(user=user,
-                                permission__codename='change_annotation') \
-                          .exists()
-        assert user_perms.filter(user=user,
-                                 permission__codename='delete_annotation') \
-                         .exists()
-        assert user_perms.filter(user=user,
-                                 permission__codename='admin_annotation') \
-                         .exists()
+        user_perms = get_perms(user, note)
+        assert len(user_perms) == 4
+        assert 'view_annotation' in user_perms
+        assert 'change_annotation' in user_perms
+        assert 'delete_annotation' in user_perms
+        assert 'admin_annotation' in user_perms
 
         note.save()
         # saving again shouldn't duplicate the permissions
-        assert note.user_permissions().count() == 4
+        assert len(user_perms) == 4
 
     def test_db_permissions(self):
         """ test db_permission Annotation method"""
@@ -336,10 +333,10 @@ class AnnotationPermissionsTestCase(TestCase):
         user = get_user_model().objects.get(username='testuser')
         group1 = AnnotationGroup.objects.create(name='foo')
         group2 = AnnotationGroup.objects.create(name='foobar')
+        public_group = Group.objects.get(name="public_annotations")
 
         note.db_permissions({
-            'read': [user.username, group1.annotation_id,
-                     group2.annotation_id],
+            'read': [user.username, group1.annotation_id, group2.annotation_id],
             'update': [user.username, group1.annotation_id],
             'delete': [user.username]
         })
@@ -359,9 +356,10 @@ class AnnotationPermissionsTestCase(TestCase):
                                 permission__codename='delete_annotation') \
                           .exists()
 
-        # should be three total group permissions
+        # not setting admin permission will cause default grant to public group.
+        # should be four total group permissions
         group_perms = note.group_permissions()
-        assert group_perms.count() == 3
+        assert group_perms.count() == 4
         assert group_perms.filter(group=group1,
                                   permission__codename='view_annotation') \
                            .exists()
@@ -371,6 +369,9 @@ class AnnotationPermissionsTestCase(TestCase):
         assert group_perms.filter(group=group2,
                                   permission__codename='view_annotation') \
                            .exists()
+        assert group_perms.filter(group=public_group,
+                                  permission__codename='admin_annotation') \
+            .exists()
 
         # replace permissions
         note.db_permissions({
@@ -378,23 +379,21 @@ class AnnotationPermissionsTestCase(TestCase):
             'update': [user.username],
             'delete': []
         })
-
+        # not setting admin and delete permission will cause default grant to public group.
         # counts should reflect the changes
         user_perms = note.user_permissions()
         assert user_perms.count() == 2
         group_perms = note.group_permissions()
-        assert group_perms.count() == 1
+        assert group_perms.count() == 3
 
-        # permissions created before should be gone
+        # delete permission granted before should be gone
         assert not user_perms.filter(user=user,
                                      permission__codename='delete_annotation') \
                              .exists()
-        assert not group_perms.filter(group=group1,
-                                      permission__codename='change_annotation') \
-                              .exists()
-        assert not group_perms.filter(group=group2,
-                                      permission__codename='view_annotation') \
-                               .exists()
+        # assert public annotation group now have delete permission
+        assert group_perms.filter(group=public_group,
+                                      permission__codename='delete_annotation') \
+            .exists()
 
         # invalid group/user should not throw error
         note.db_permissions({
@@ -404,7 +403,8 @@ class AnnotationPermissionsTestCase(TestCase):
         })
 
         assert note.user_permissions().count() == 0
-        assert note.group_permissions().count() == 0
+        # public group should have delete and admin permission
+        assert note.group_permissions().count() == 2
 
 
     def test_permissions_dict(self):
@@ -460,6 +460,8 @@ class AnnotationViewsTest(TestCase):
         # annotation that belongs to testuser
         # get testuser user model
         self.user = get_user_model().objects.get(username=self.user_credentials['user']['username'])
+        # get super user model
+        self.superuser = get_user_model().objects.get(username=self.user_credentials['superuser']['username'])
         # get testuser single annotation from fixture
         self.user_note = Annotation.objects \
             .get(user__username=self.user_credentials['user']['username'])
@@ -471,9 +473,8 @@ class AnnotationViewsTest(TestCase):
 
         # if per-object permission is enabled
         if ANNOTATION_OBJECT_PERMISSIONS:
-            # run the overridden save method on all the annotations to grant author access
-            for note in Annotation.objects.all():
-                note.save()
+            # make the normal user annotation public
+            self.user_note.db_permissions({})
 
     def test_api_index(self):
         resp = self.client.get(reverse('annotation-api:index'))
@@ -491,11 +492,17 @@ class AnnotationViewsTest(TestCase):
         # select annotations from testuser
         user_notes = notes.filter(user__username='testuser')
 
-        # anonymous user should see no notes
+        # request annotation list as anonymous
         resp = self.client.get(reverse('annotation-api:annotations'))
         assert resp['Content-Type'] == 'application/json'
         data = json.loads(resp.content.decode())
-        assert len(data)==0
+        if ANNOTATION_OBJECT_PERMISSIONS:
+            # anonymous user should see only the public note
+            assert len(data)==1
+            assert data[0]['id'] == str(user_notes[0].id)
+        else:
+            # no note should be showed to anonymous user if per-object permission are disabled
+            assert len(data)==0
 
         # log in as a regular user
         self.client.login(**self.user_credentials['user'])
@@ -545,8 +552,7 @@ class AnnotationViewsTest(TestCase):
                 note.save()
                 # manually remove the permission, since the model
                 # does not expect annotation owners to change
-                if remove_perm:
-                    remove_perm('view_annotation', user, note)
+                note.db_permissions({'read': [superuser.username]})
 
             # create a new annotation group
             group = AnnotationGroup.objects.create(name='annotation group')
@@ -636,13 +642,27 @@ class AnnotationViewsTest(TestCase):
 
     def test_get_annotation(self):
         # try to get an annotation without being not logged in
-        # should be denied
+        # only public annotation should be allowed
         resp = self.client.get(reverse('annotation-api:view',
-            kwargs={'id': self.user_note.id}),
+                                       kwargs={'id': self.user_note.id}),
+                               HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        if ANNOTATION_OBJECT_PERMISSIONS:
+            # ajax request should return 200
+            self.assertEqual(200, resp.status_code,
+                             'should return 200 , got %s' \
+                             % resp.status_code)
+        else:
+            # if per-object permission are disabled, public annotation cannot exist
+            self.assertEqual(403, resp.status_code,
+                             'should return 200 , got %s' \
+                             % resp.status_code)
+        # try private annotation
+        resp = self.client.get(reverse('annotation-api:view',
+            kwargs={'id': self.superuser_note.id}),
             HTTP_X_REQUESTED_WITH='XMLHttpRequest')
         # ajax request should return 401
-        self.assertEqual(401, resp.status_code,
-            'should return 401 Unauthorized on anonymous attempt to view annotation, got %s' \
+        self.assertEqual(403, resp.status_code,
+            'should return 403 Forbidden on anonymous attempt to view annotation, got %s' \
             % resp.status_code)
 
         # log in as a regular user
@@ -699,20 +719,20 @@ class AnnotationViewsTest(TestCase):
             data=json.dumps(AnnotationTestCase.annotation_data),
             content_type='application/json',
             HTTP_X_REQUESTED_WITH='XMLHttpRequest')
-        self.assertEqual(401, resp.status_code,
-            'expected 401 Unauthorized on anonymous attempt to update annotation, got %s' \
+        self.assertEqual(403, resp.status_code,
+            'expected 403 Forbidden on anonymous attempt to update annotation, got %s' \
             % resp.status_code)
 
         # log in as a regular user
         self.client.login(**self.user_credentials['user'])
-        # get view annotation permission object
-        view_perm = Permission.objects.get(codename='view_annotation')
-        # get update annotation permission object
-        update_perm = Permission.objects.get(codename='change_annotation')
 
         # if per-object permissions are enabled, by default user has
         # update access to their own annotations
         if not ANNOTATION_OBJECT_PERMISSIONS:
+            # get view annotation permission object
+            view_perm = Permission.objects.get(codename='view_annotation')
+            # get update annotation permission object
+            update_perm = Permission.objects.get(codename='change_annotation')
             # when testing with normal django permissions, give the user view & change permissions
             testuser = get_user_model().objects.get(username='testuser')
             testuser.user_permissions.add(view_perm)
@@ -797,8 +817,8 @@ class AnnotationViewsTest(TestCase):
         url = reverse('annotation-api:view', kwargs={'id': self.user_note.id})
         resp = self.client.delete(url,
             HTTP_X_REQUESTED_WITH='XMLHttpRequest')
-        self.assertEqual(401, resp.status_code,
-            'should return 401 Unauthorized on anonymous attempt to delete annotation, got %s' \
+        self.assertEqual(403, resp.status_code,
+            'should return 403 Forbidden on anonymous attempt to delete annotation, got %s' \
             % resp.status_code)
 
         # log in as a regular user
@@ -812,6 +832,7 @@ class AnnotationViewsTest(TestCase):
             testuser = get_user_model().objects.get(username='testuser')
             testuser.user_permissions.add(view_perm)
             testuser.user_permissions.add(delete_perm)
+
 
         resp = self.client.delete(url,
             HTTP_X_REQUESTED_WITH='XMLHttpRequest')
@@ -854,8 +875,12 @@ class AnnotationViewsTest(TestCase):
         self.assertEqual('application/json', resp['Content-Type'])
         # check the response data
         data = json.loads(resp.content.decode())
-        self.assertEqual(0, data['total'],
-            'anonymous user should not see any search results')
+        if ANNOTATION_OBJECT_PERMISSIONS:
+            self.assertEqual(1, data['total'],
+                             'anonymous user should see 1 public annotation when per-object permission are enabled')
+        else:
+            self.assertEqual(0, data['total'],
+                'anonymous user should not see any search results')
 
         # login as regular user
         self.client.login(**self.user_credentials['user'])

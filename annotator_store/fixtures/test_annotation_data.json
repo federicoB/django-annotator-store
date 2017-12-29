@@ -1,5 +1,13 @@
 [
-{
+  {
+    "model": "auth.group",
+    "pk": 1,
+    "fields": {
+        "name": "public_annotations",
+        "permissions": []
+    }
+  },
+  {
     "fields": {
         "username": "testuser",
         "first_name": "",
@@ -8,7 +16,7 @@
         "is_superuser": false,
         "is_staff": false,
         "last_login": null,
-        "groups": [],
+        "groups": [1],
         "user_permissions": [],
         "password": "pbkdf2_sha256$20000$55gtN3K49dLQ$l8yJGEOGtNgPxzEQ5dAAXZjs6IN28nh1cMmrmZryJp0=",
         "email": "",
@@ -26,7 +34,7 @@
         "is_superuser": true,
         "is_staff": true,
         "last_login": null,
-        "groups": [],
+        "groups": [1],
         "user_permissions": [],
         "password": "pbkdf2_sha256$20000$8wTlWopEurR2$Hjm+hI0zuYwB9Pk4kWVfbU1ah7Qy0EMa+n/HIX0F30s=",
         "email": "",

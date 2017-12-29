@@ -1,5 +1,6 @@
 from django.contrib.admin.models import LogEntry, ADDITION, CHANGE, DELETION
 from django.contrib.auth.decorators import permission_required
+from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied
 from django.core.urlresolvers import reverse
@@ -8,7 +9,6 @@ from django.http import JsonResponse, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.views.generic import View
-from eulcommon.djangoextras.auth import login_required_with_ajax
 from eulcommon.djangoextras.http.responses import HttpResponseSeeOtherRedirect
 import six
 
@@ -79,11 +79,12 @@ class Annotations(View):
 
     def get(self, request):
         'List viewable annotations as JSON.'
-        # NOTE: this method doesn't *technically* require that the user
-        # be logged in, but under current permission model, no
-        # annotations will be visible to anonymous users.
 
-        notes = Annotation.objects.visible_to(request.user)
+        if not request.user.is_anonymous():
+            notes = Annotation.objects.visible_to(request.user)
+        else:
+            # show public annotations if the user is anonymous
+            notes = Annotation.objects.get_public()
         # TODO: sort order?
 
         # TODO: pagination? look at reference implementation
@@ -120,16 +121,14 @@ class AnnotationView(View):
     that the user be logged in and own the annotation being viewed,
     updated, or deleted.'''
 
-    # all single-annotation views currently require user to be logged in
-    @method_decorator(login_required_with_ajax())
-    def dispatch(self, *args, **kwargs):
-        return super(AnnotationView, self).dispatch(*args, **kwargs)
-
     def get_object(self):
         note = get_object_or_404(Annotation, id=self.kwargs.get('id', None))
         # check permissions for view access
         # NOTE: assumes user must have view access in order to change/delete
-        if not note.user_can_view(self.request.user):
+
+        # check if user has view permission to note or if the annotation can be viewed be everyone
+        if not note.user_can_view(self.request.user) \
+                and not note.is_public_view(self.request.user):
             raise PermissionDenied()
 
         return note
@@ -149,10 +148,11 @@ class AnnotationView(View):
             if not note.user_can_update(self.request.user):
                 raise PermissionDenied()
 
-            # NOTE: if user has update permission but not admin permission,
-            # any changes to annotation permissions will be ignored
+            # NOTE: if user has update permission but not admin permission
+            # PermissionDenied exception is raised
             note.update_from_request(request)
-
+            # save the updated note
+            note.save()
             # create log entry for modification of the annotation
             LogEntry.objects.log_action(
                 user_id=request.user.id,
@@ -213,9 +213,12 @@ class AnnotationSearch(View):
         # TODO: look at reference implementation to see what
         # other search fields should be supported
 
-        # Only provide access to notes a user can view
-        # (For non-superusers, this is only notes they own)
-        notes = Annotation.objects.visible_to(request.user)
+        if not request.user.is_anonymous():
+            notes = Annotation.objects.visible_to(request.user)
+        else:
+            # show public annotations if the user is anonymous
+            notes = Annotation.objects.get_public()
+
         # get query string parameters keys
         search_keys = request.GET.keys()
         # for each parameter key

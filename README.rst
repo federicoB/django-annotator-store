@@ -90,6 +90,12 @@ Run migrations to create annotation database tables::
   `django-guardian` and include `guardian` in your
   **INSTALLED_APPS**.  Per-object permissions must be turned on in Django
   settings by setting **ANNOTATION_OBJECT_PERMISSIONS** to True.
+  All new user should be added to public annotation group.
+  Insert the following code in user registration::
+
+   user.groups.add(Group.objects.get(name='public_permission'))
+
+  Important! migrate database after enabling per-object permission
 
 Custom Annotation Model
 ^^^^^^^^^^^^^^^^^^^^^^^
