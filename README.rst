@@ -93,7 +93,7 @@ Run migrations to create annotation database tables::
   All new user should be added to public annotation group.
   Insert the following code in user registration::
 
-   user.groups.add(Group.objects.get(name='public_permission'))
+   user.groups.add(Group.objects.get(name='public_annotations'))
 
   Important! migrate database after enabling per-object permission
 

@@ -7,14 +7,14 @@ def create_public_annotations_group(apps, schema_editor):
     ANNOTATION_OBJECT_PERMISSIONS = getattr(settings, 'ANNOTATION_OBJECT_PERMISSIONS',
                                             False)
     if ANNOTATION_OBJECT_PERMISSIONS:
-        Group.objects.create(name="public_permissions")
+        Group.objects.create(name="public_annotations")
 
 def remove_public_annotations_group(apps, schema_editor):
     """for backward migrations"""
     ANNOTATION_OBJECT_PERMISSIONS = getattr(settings, 'ANNOTATION_OBJECT_PERMISSIONS',
                                             False)
     if ANNOTATION_OBJECT_PERMISSIONS:
-        Group.objects.filter(name="public_permissions").delete()
+        Group.objects.filter(name="public_annotations").delete()
 
 
 class Migration(migrations.Migration):
