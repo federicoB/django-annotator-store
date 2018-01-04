@@ -10,24 +10,23 @@ from django.core.urlresolvers import reverse
 from django.contrib.auth.models import Group, User
 from django.utils.html import format_html
 from jsonfield import JSONField
-try:
+
+# get system logger for notifying test errors/warnings
+logger = logging.getLogger(__name__)
+# get per-object permission flag
+ANNOTATION_OBJECT_PERMISSIONS = getattr(settings, 'ANNOTATION_OBJECT_PERMISSIONS', False)
+# guardian support is disabled by default
+guardian = False
+# only import guardian when object permissions are enabled
+if ANNOTATION_OBJECT_PERMISSIONS:
     import guardian
     from guardian.shortcuts import assign_perm, get_objects_for_user, \
         get_objects_for_group, get_perms_for_model, get_perms
     from guardian.models import UserObjectPermission, GroupObjectPermission
-except ImportError:
-    guardian = None
 import six
-
-
-logger = logging.getLogger(__name__)
-
 
 ANNOTATION_MODEL_NAME = getattr(settings, 'ANNOTATOR_ANNOTATION_MODEL',
     "annotator_store.Annotation")
-
-ANNOTATION_OBJECT_PERMISSIONS = getattr(settings, 'ANNOTATION_OBJECT_PERMISSIONS',
-    False)
 
 
 class AnnotationQuerySet(models.QuerySet):
