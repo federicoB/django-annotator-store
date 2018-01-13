@@ -45,7 +45,7 @@
       "testuser"
     ],
     "quote": "MATRIMONY BY ADVERTISEMENT;",
-    "extra_data": "{\"ranges\":[{\"start\":\"/div[3]/span\",\"end\":\"/div[3]/span\",\"startOffset\":0,\"endOffset\":27}]}"
+    "extra_data": "{\"ranges\":[{\"start\":\"/div[3]/span\",\"end\":\"/div[3]/span\",\"startOffset\":0,\"endOffset\":27}],\"testKey\":\"testValue\"}"
   },
   "model": "annotator_store.annotation",
   "pk": "681e2007-6b26-429a-b850-66ea93a5879c"

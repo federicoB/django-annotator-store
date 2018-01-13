@@ -852,7 +852,16 @@ class AnnotationViewsTest(TestCase):
         resp = self.client.get(search_url, {'keyword': 'ranges'})
         data = json.loads(resp.content.decode())
         assert data['total'] == 2
-
+        # search by exact extra data
+        resp = self.client.get(search_url, {'testKey':'testValue'})
+        data = json.loads(resp.content.decode())
+        assert data['total'] == 1
+        resp = self.client.get(search_url, {'nonExistentField': 'testValue'})
+        data = json.loads(resp.content.decode())
+        assert data['total'] == 0
+        resp = self.client.get(search_url, {'testKey': 'wrongValue'})
+        data = json.loads(resp.content.decode())
+        assert data['total'] == 0
 
         # limit/offset
         resp = self.client.get(search_url, {'limit': '1'})
