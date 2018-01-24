@@ -245,6 +245,17 @@ class AnnotationSearch(View):
                 )
                 # NOTE: contains search on extra data jsonfield is
                 # probably not a great idea...
+            # non-standard field search on extra data
+            # ignore limit and offset field because they must be used afterward
+            elif field not in ['limit','offset']:
+                # evaluate queryset for extra_data JSONField parsing
+                annotations = notes.all()
+                # filter by field and search_value in extra_data
+                annotations = filter(lambda x : x.extra_data.get(field,None)==search_val,annotations)
+                # build a list of annotations IDs
+                annotationsId = map(lambda x: x.id, annotations)
+                # filter queryset by those IDs
+                notes = notes.filter(id__in=annotationsId)
 
         # for now, ignore date fields and extra data
         # NOTE: date searching would be nice, but probably requires
