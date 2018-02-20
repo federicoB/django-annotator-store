@@ -3,6 +3,18 @@
 CHANGELOG
 =========
 
+Release 0.7
+-----------
+
+* Django 2.0 compatible (`Ashwin Ramaswami <https://github.com/epicfaace>`
+  `PR#6 <https://github.com/Princeton-CDH/django-annotator-store/pull/6>`_)
+* Travis-CI build corrections and improvements (`Federico Bertani <https://github.com/federicoB>`_
+  `PR#4 <https://github.com/Princeton-CDH/django-annotator-store/pull/4>`_,
+  `PR#3 <https://github.com/Princeton-CDH/django-annotator-store/pull/3>`_)
+* New `tox <http://tox.readthedocs.io/>`_ build to mirror Travis-CI
+  build matrix of supported Python and Django versions with and without
+  item-level permissions.
+
 Release 0.6
 -----------
 
