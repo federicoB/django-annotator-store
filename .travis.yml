@@ -12,6 +12,13 @@ env:
   - DJANGO=1.10 PERMISSIONS=false
   - DJANGO=1.11 PERMISSIONS=true
   - DJANGO=1.11 PERMISSIONS=false
+  - DJANGO=2.0 PERMISSIONS=false
+  - DJANGO=2.0 PERMISSIONS=true
+
+matrix:
+  exclude:
+  - python: 2.7
+    env: DJANGO=2.0
 
 before_install:
   - pip install --upgrade pytest
