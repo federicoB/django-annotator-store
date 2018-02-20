@@ -5,22 +5,19 @@ python:
   - "3.5"
 
 env:
-  - DJANGO=1.8 PERMISSIONS=true
-  - DJANGO=1.8 PERMISSIONS=false
-  - DJANGO=1.9 PERMISSIONS=true
-  - DJANGO=1.10 PERMISSIONS=true
-  - DJANGO=1.10 PERMISSIONS=false
-  - DJANGO=1.11 PERMISSIONS=true
-  - DJANGO=1.11 PERMISSIONS=false
-  - DJANGO=2.0 PERMISSIONS=false
-  - DJANGO=2.0 PERMISSIONS=true
+  - DJANGO=1.8
+  - DJANGO=1.9
+  - DJANGO=1.10
+  - DJANGO=1.11
+  - DJANGO=2.0
 
 matrix:
+ matrix:
+    - PERMISSIONS=true
+    - PERMISSIONS=false
   exclude:
   - python: 2.7
-    env: DJANGO=2.0 PERMISSIONS=false
-  - python: 2.7
-    env: DJANGO=2.0 PERMISSIONS=true
+    env: DJANGO=2.0
 
 before_install:
   - pip install --upgrade pytest
