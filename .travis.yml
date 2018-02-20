@@ -12,9 +12,8 @@ env:
   - DJANGO=2.0
 
 matrix:
- matrix:
-    - PERMISSIONS=true
-    - PERMISSIONS=false
+  - PERMISSIONS=true
+  - PERMISSIONS=false
   exclude:
   - python: 2.7
     env: DJANGO=2.0
