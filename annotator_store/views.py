@@ -203,6 +203,7 @@ class AnnotationSearch(View):
        - user (exact match on username)
        - keyword: case-insensitive partial match on text, quote, or
          with extra data (e.g., to match tags)
+       - other field: case sensitive search on extra_data JSONField
 
     Search results can be limited by specifying ``limit`` or ``offset``
     parameters.
@@ -239,16 +240,9 @@ class AnnotationSearch(View):
             # non-standard field search on extra data
             # ignore limit and offset field because they must be used afterward
             elif field not in ['limit','offset']:
-                # evaluate queryset for extra_data JSONField parsing
-                annotations = notes.all()
-                # filter by field and search_value in extra_data
-                annotations = filter(lambda x : x.extra_data.get(field,None)==search_val,annotations)
-                # build a list of annotations IDs
-                annotationsId = map(lambda x: x.id, annotations)
-                # filter queryset by those IDs
-                notes = notes.filter(id__in=annotationsId)
+                notes = notes.filter(extra_data__contains=field).filter(extra_data__contains=search_val)
 
-        # for now, ignore date fields and extra data
+        # for now, ignore date fields
         # NOTE: date searching would be nice, but probably requires
         # parsing dates and generating date ranges
         # tag searching may be important eventually too
