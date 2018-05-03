@@ -24,11 +24,14 @@ setup(
     long_description=README,
     url='https://github.com/Princeton-CDH/django-annotator-store',
     install_requires=[
-        'django>=1.8',
+        'django>=1.8,<2.0',
         'pytz',
         'jsonfield',
         'eulcommon',
         'six',
+    ],
+    dependency_links=[
+        'https://github.com/epicfaace/eulcommon.git#egg=eulcommon',
     ],
     setup_requires=['pytest-runner'],
     tests_require=TEST_REQUIREMENTS,

@@ -6,28 +6,30 @@ from django.apps import apps
 from django.db import models
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
-from django.core.urlresolvers import reverse
+try:
+    from django.urls import reverse
+except ImportError:
+    from django.core.urlresolvers import reverse
 from django.contrib.auth.models import Group, User
 from django.utils.html import format_html
 from jsonfield import JSONField
-try:
+
+# get system logger for notifying test errors/warnings
+logger = logging.getLogger(__name__)
+# get per-object permission flag
+ANNOTATION_OBJECT_PERMISSIONS = getattr(settings, 'ANNOTATION_OBJECT_PERMISSIONS', False)
+# guardian support is disabled by default
+guardian = False
+# only import guardian when object permissions are enabled
+if ANNOTATION_OBJECT_PERMISSIONS:
     import guardian
     from guardian.shortcuts import assign_perm, get_objects_for_user, \
         get_objects_for_group, get_perms_for_model, get_perms
     from guardian.models import UserObjectPermission, GroupObjectPermission
-except ImportError:
-    guardian = None
 import six
-
-
-logger = logging.getLogger(__name__)
-
 
 ANNOTATION_MODEL_NAME = getattr(settings, 'ANNOTATOR_ANNOTATION_MODEL',
     "annotator_store.Annotation")
-
-ANNOTATION_OBJECT_PERMISSIONS = getattr(settings, 'ANNOTATION_OBJECT_PERMISSIONS',
-    False)
 
 
 class AnnotationQuerySet(models.QuerySet):
@@ -160,7 +162,7 @@ class BaseAnnotation(models.Model):
     #: user who owns the annotation
     #: when serialized, id of annotation owner OR an object with an 'id' property
     # Make user optional for now
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.CASCADE)
 
     # tags still todo
     # "tags": [ "review", "error" ],             # list of tags (from Tags plugin)
@@ -260,7 +262,7 @@ class BaseAnnotation(models.Model):
             else:
                 extra_data[key] = val
 
-        if not request.user.is_anonymous():
+        if not (request.user.is_anonymous() if callable(request.user.is_anonymous) else request.user.is_anonymous):
             model_data['user'] = request.user
 
         # remove any common and internal fields from extra data so they
